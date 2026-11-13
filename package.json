@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "icons": "node scripts/make-icons.mjs",
-    "import": "node --env-file=.env.local scripts/import.mjs"
+    "import": "node --env-file=.env.local scripts/import.mjs",
+    "enrich": "node --env-file=.env.local scripts/enrich.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0"

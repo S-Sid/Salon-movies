@@ -26,7 +26,10 @@ Code is written and tested with a dev-only mock (open http://localhost:5173/?moc
 3. [ ] Supabase > Authentication > Sign In / Providers: turn "Allow new users to sign up" ON
 4. [ ] Decide email: Confirm email OFF (password sign-up works instantly, no email needed) or custom SMTP with a new Gmail
 5. [ ] Then ask Claude to commit + push (Netlify redeploys). On first login pick your own username.
-Not built yet: enrichment script (TMDB/OMDb), audience/warning/cast data for the 201 films (UI is ready and shows them when present).
+SQL migration: DONE (ran OK, you are admin). Remaining go-live steps: 2 (invite code), 3 (allow sign-ups), 4 (Confirm email choice), 5 (push).
+Enrichment script is written and logic-tested offline (scripts/enrich.mjs). Needs free TMDB key (+ optional OMDb key) in .env.local as TMDB_API_KEY / OMDB_API_KEY.
+  - `npm run enrich` = dry run; `npm run enrich -- --apply` = save. Adult-flagged films get removed; unsure matches stay pending.
+  - Not covered by the script: moods and warning tags (human pass), audience/cast for the original 201 films (can run the same lookup for them later).
 
 ### Original decisions
 Decisions made:

@@ -7,3 +7,7 @@ export const TIMES = [
   {id:"mid", label:"2 to 2½ hours", test:m=>m>=120 && m<=150},
   {id:"long", label:"A long evening", test:m=>m>150}
 ];
+
+export const BEST_TIMES = ["Rainy night","Lazy weekend","Date night","With friends","With family","Solo","When you feel low","When you want a thrill"];
+export const FEELINGS = ["Happy","Satisfied","Inspired","Moved","Thoughtful","Shaken","Disturbed","Drained","Over-hyped","Disappointed"];
+export const AUDIENCES = ["Kids","Family","Teens 13+","Adults only"];

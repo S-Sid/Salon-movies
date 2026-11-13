@@ -1,11 +1,12 @@
 import "./styles.css";
 import { $, esc, reduce, fmtTime, pal, safeCol } from "./util.js";
-import { MOODS, GENRES, PAIRINGS, GENRE_ROW, TIMES } from "./vocab.js";
+import { MOODS, GENRES, PAIRINGS, GENRE_ROW, TIMES, BEST_TIMES, FEELINGS, AUDIENCES } from "./vocab.js";
 import { sceneCache, drawScene } from "./scenes.js";
-import { store } from "./store.js";
+import { store as realStore } from "./store.js";
 
 (() => {
   "use strict";
+  let store = realStore;   // dev-only mock swaps in below (never in the production build)
   /* ---------- Opening: wax seal + curtains ---------- */
   const intro = $("#intro");
   function endIntro(){ if(!intro.classList.contains("done")) intro.classList.add("done"); startHero(); }
@@ -25,7 +26,10 @@ import { store } from "./store.js";
   /* ---------- State ---------- */
   let listFilms = [], addedFilms = [], films = [];
   let mine = {}; let rawLists = [];
-  const F = {lang:null, svc:null, genres:[], mood:null, time:null};
+  const F = {lang:null, svc:null, genres:[], mood:null, time:null, aud:null};
+  const AUD_CHIPS = [{id:"fam", label:"Family-friendly", test:a=>a==="Kids"||a==="Family"},{id:"teen", label:"Teens 13+", test:a=>a==="Teens 13+"},{id:"adult", label:"Adults only", test:a=>a==="Adults only"}];
+  let me = {name:null, admin:false}, names = {}, stats = {};
+  let unseenOnly = false; try { unseenOnly = localStorage.getItem("salonUnseen")==="1"; } catch(e){}
   let tab = "home";
   let uid = null, canWrite = true, heroFilm = null, heroStarted = false;
 
@@ -117,12 +121,15 @@ import { store } from "./store.js";
     const ms = MOODS.filter(m=>presentM.has(m)).concat([...presentM].filter(m=>!MOODS.includes(m)));
     $("#moodChips").innerHTML = '<span class="lbl">Mood</span>' + ms.map(m => chip("data-mood", m, esc(m), F.mood===m)).join("");
     $("#timeChips").innerHTML = '<span class="lbl">Time you have</span>' + TIMES.map(t => chip("data-time", t.id, t.label, F.time===t.id)).join("");
-    $("#clearAll").hidden = !(F.lang || F.svc || F.genres.length || F.mood || F.time);
+    const haveAud = new Set(ready.map(f=>f.audience).filter(Boolean));
+    $("#audChips").innerHTML = haveAud.size ? '<span class="lbl">Audience <small>who is watching</small></span>' + AUD_CHIPS.filter(a=>[...haveAud].some(a.test)).map(a => chip("data-aud", a.id, esc(a.label), F.aud===a.id)).join("") : "";
+    $("#audChips").hidden = !haveAud.size;
+    $("#clearAll").hidden = !(F.lang || F.svc || F.genres.length || F.mood || F.time || F.aud);
   }
-  $("#clearAll").addEventListener("click", () => { F.lang=null; F.svc=null; F.genres=[]; F.mood=null; F.time=null; renderAll(); });
+  $("#clearAll").addEventListener("click", () => { F.lang=null; F.svc=null; F.genres=[]; F.mood=null; F.time=null; F.aud=null; renderAll(); });
 
   document.addEventListener("click", e => {
-    const t = e.target.closest("[data-lang],[data-svc],[data-genre],[data-combo],[data-mood],[data-time],[data-tab]");
+    const t = e.target.closest("[data-lang],[data-svc],[data-genre],[data-combo],[data-mood],[data-time],[data-aud],[data-tab]");
     if (!t) return;
     if (t.dataset.lang){ F.lang = F.lang===t.dataset.lang ? null : t.dataset.lang; }
     else if (t.dataset.svc){ F.svc = F.svc===t.dataset.svc ? null : t.dataset.svc; }
@@ -130,9 +137,10 @@ import { store } from "./store.js";
     else if (t.dataset.combo){ const p=t.dataset.combo.split("|"); F.genres = (F.genres.length===2 && hasAll(F.genres,p)) ? [] : p; }
     else if (t.dataset.mood){ F.mood = F.mood===t.dataset.mood ? null : t.dataset.mood; }
     else if (t.dataset.time){ F.time = F.time===t.dataset.time ? null : t.dataset.time; }
-    else if (t.dataset.tab){ tab=t.dataset.tab; document.querySelectorAll("[data-tab]").forEach(b=>b.setAttribute("aria-pressed", b===t)); window.scrollTo({top: Math.min(scrollY, $("#rows").offsetTop - 80), behavior: reduce?"auto":"smooth"}); }
+    else if (t.dataset.aud){ F.aud = F.aud===t.dataset.aud ? null : t.dataset.aud; }
+    else if (t.dataset.tab){ tab=t.dataset.tab; document.querySelectorAll("[data-tab]").forEach(b=>b.setAttribute("aria-pressed", b===t)); window.scrollTo({top: $("#rows").offsetTop - 90, behavior: reduce?"auto":"smooth"}); }
     renderAll();
-    if (!t.dataset.tab && (F.lang||F.svc||F.genres.length||F.mood||F.time)) { const r=$("[data-row='picked']") || $(".empty"); if (r && r.getBoundingClientRect().top > innerHeight) r.scrollIntoView({behavior: reduce?"auto":"smooth", block:"center"}); }
+    if (!t.dataset.tab && (F.lang||F.svc||F.genres.length||F.mood||F.time||F.aud)) { const r=$("[data-row='picked']") || $(".empty"); if (r && r.getBoundingClientRect().top > innerHeight) r.scrollIntoView({behavior: reduce?"auto":"smooth", block:"center"}); }
   });
 
   /* ---------- Hero ---------- */
@@ -156,7 +164,7 @@ import { store } from "./store.js";
       art.style.background = "radial-gradient(80% 80% at 70% 30%, #4a1c2c, #140c12)";
       art.innerHTML = '<div class="frame"></div>';
       copy.innerHTML = `<div class="eyebrow">An empty drawing room</div><h1>Your salon awaits its first title</h1>
-        <p class="hook">Send Claude a list of films in chat and each one arrives here with its mood, running time, ratings and where to stream it in India.</p>
+        <p class="hook">Add a film with just its title, year and language. Details like mood, running time, ratings and where to stream it in India get filled in afterwards.</p>
         <div class="actions"><button class="btn primary" type="button" id="heroAdd">+ Add a film yourself</button></div>`;
       $("#heroAdd")?.addEventListener("click", openAdd);
     } else {
@@ -192,7 +200,7 @@ import { store } from "./store.js";
         ${sceneCache[f.id] ? "" : `<div class="glyph">${esc(f.motif || (f.title||"?")[0])}</div>`}
         ${f.year?`<span class="yr">${esc(f.year)}</span>`:""}${badge}
         <div class="ttl">${esc(f.title)}</div></div>
-      <div class="peek">${f.runtimeMin?`<span>${fmtTime(f.runtimeMin)}</span>`:""}${r.imdb?`<span><b>IMDb ${esc(r.imdb)}</b></span>`:""}${r.rt!=null?`<span>RT ${esc(r.rt)}%</span>`:""}</div>
+      <div class="peek">${f.runtimeMin?`<span>${fmtTime(f.runtimeMin)}</span>`:""}${r.imdb?`<span><b>IMDb ${esc(r.imdb)}</b></span>`:""}${r.rt!=null?`<span>RT ${esc(r.rt)}%</span>`:""}${stats[f.id]&&stats[f.id].avg?`<span>Friends ★${esc(stats[f.id].avg)}</span>`:""}</div>
       </div>`;
   }
   function rowHTML(title, sub, list, key){
@@ -208,25 +216,26 @@ import { store } from "./store.js";
     if (F.genres.length && !hasAll(f.genres, F.genres)) return false;
     if (F.mood && !(f.moods||[]).includes(F.mood)) return false;
     if (F.time){ const t = TIMES.find(x=>x.id===F.time); if (!t.test(f.runtimeMin)) return false; }
+    if (F.aud){ const a = AUD_CHIPS.find(x=>x.id===F.aud); if (!a.test(f.audience)) return false; }
     return true;
   };
   const byRating = (a,b) => ((b.ratings||{}).imdb||0) - ((a.ratings||{}).imdb||0);
 
   function renderRows(){
     const ready = films.filter(f => !f.pending);
-    const unseen = ready.filter(f => statusOf(f)!=="watched");
+    const unseen = unseenOnly ? ready.filter(f => statusOf(f)!=="watched") : ready;   // "unseen" = what this person may still watch
     let html = "";
-    const filtering = F.lang || F.svc || F.genres.length || F.mood || F.time;
+    const filtering = F.lang || F.svc || F.genres.length || F.mood || F.time || F.aud;
     if (filtering){
       const hits = unseen.filter(passes);
-      const label = [F.lang, F.svc, F.genres.length ? comboName(F.genres) : null, F.mood, F.time && TIMES.find(t=>t.id===F.time).label].filter(Boolean).join(" · ");
+      const label = [F.lang, F.svc, F.genres.length ? comboName(F.genres) : null, F.mood, F.time && TIMES.find(t=>t.id===F.time).label, F.aud && AUD_CHIPS.find(a=>a.id===F.aud).label].filter(Boolean).join(" · ");
       html += hits.length ? rowHTML("Chosen for your evening", label, hits, "picked")
         : `<div class="empty" data-row="picked">Nothing unseen on your list matches ${esc(label)} yet. Loosen a filter, or add films that fit.</div>`;
     }
     if (tab==="home"){
       html += rowHTML("Continue the season", "Started, not finished", ready.filter(f=>statusOf(f)==="watching"), "watching");
       const langs = [...new Set(unseen.map(f=>f.language||"English"))];
-      langs.forEach(l => html += rowHTML(`In ${esc(l)}`, `${unseen.filter(f=>(f.language||"English")===l).length} awaiting an evening`, unseen.filter(f=>(f.language||"English")===l), "lang-"+l));
+      langs.forEach(l => html += rowHTML(`In ${esc(l)}`, `${unseen.filter(f=>(f.language||"English")===l).length} ${unseenOnly ? "awaiting an evening" : "on the shelf"}`, unseen.filter(f=>(f.language||"English")===l), "lang-"+l));
       const sv = {}; unseen.forEach(f => servicesOf(f).forEach(s => (sv[s]=sv[s]||[]).push(f)));
 
       const fun = unseen.filter(f=>f.yourShelf);
@@ -235,8 +244,8 @@ import { store } from "./store.js";
       combos.forEach(c => html += rowHTML(`${esc(c.p[0])} <span style="color:var(--gilt)">+</span> ${esc(c.p[1])}`, "A pairing", c.list, "combo-"+c.p.join("-")));
       html += rowHTML("Before the candles burn down", "Under two hours", unseen.filter(f=>f.runtimeMin && f.runtimeMin<120), "short");
       html += rowHTML("Critics' darlings", "Highest IMDb first", unseen.slice().sort(byRating).slice(0,10), "top");
-      html += rowHTML("Awaiting details", "Added by you. Ask Claude to research these.", films.filter(f=>f.pending), "pending");
-      html += rowHTML("Seen &amp; noted", "With your insights", ready.filter(f=>statusOf(f)==="watched"), "watched");
+      html += rowHTML("Awaiting details", "Added by friends. Details are filled in soon.", films.filter(f=>f.pending), "pending");
+      if (!unseenOnly) html += rowHTML("Seen &amp; noted", "Yours alone, with your insights", ready.filter(f=>statusOf(f)==="watched"), "watched");
     }
     if (tab==="genres"){
       const present = new Set(unseen.flatMap(f=>f.genres||[]));
@@ -316,14 +325,17 @@ import { store } from "./store.js";
       <div class="m-body">
         <div>
           <div class="meta">${f.year?`<span>${esc(f.year)}</span><span class="sep">◆</span>`:""}${f.runtimeMin?`<span>${fmtTime(f.runtimeMin)}</span><span class="sep">◆</span>`:""}<span>${esc(f.language||"English")}</span>${f.director?`<span class="sep">◆</span><span>${esc(f.director)}</span>`:""}</div>
-          ${f.pending ? `<p class="status-note" style="margin:0 0 10px">Details pending. Ask Claude in chat to research “${esc(f.title)}” and the mood, runtime, ratings and streaming will appear.</p>`:""}
+          ${f.addedBy && names[f.addedBy] ? `<p class="fine" style="margin:-4px 0 10px">Added by <b style="color:var(--wisteria)">@${esc(names[f.addedBy])}</b></p>`:""}
+          ${f.pending ? `<p class="status-note" style="margin:0 0 10px">Details pending. Mood, runtime, ratings, cast and streaming get filled in soon.</p>`:""}
           ${f.synopsis?`<p>${esc(f.synopsis)}</p>`:""}
           ${f.occasion?`<h3>When to watch</h3><p><em>${esc(f.occasion)}</em></p>`:""}
           ${(f.genres||[]).length||(f.moods||[]).length?`<h3>Genre &amp; mood</h3><div style="display:flex;flex-wrap:wrap;gap:6px">${(f.genres||[]).map(x=>`<span class="tag">${esc(x)}</span>`).join("")}${(f.moods||[]).map(x=>`<span class="tag mood">${esc(x)}</span>`).join("")}</div>`:""}
+          ${(f.cast||[]).length?`<h3>Cast</h3><p>${f.cast.map(esc).join(", ")}</p>`:""}
+          ${f.audience||(f.warnings||[]).length?`<h3>Good to know</h3><div style="display:flex;flex-wrap:wrap;gap:6px">${f.audience?`<span class="tag aud">${esc(f.audience)}</span>`:""}${(f.warnings||[]).map(x=>`<span class="tag warn">${esc(x)}</span>`).join("")}</div>`:""}
           ${(r.imdb||r.rt!=null||r.mc||r.letterboxd)?`<h3>What the critics say</h3><div class="ratings">${rate("IMDb",r.imdb,"/10")}${rate("Rotten Tomatoes",r.rt,"%")}${rate("Metacritic",r.mc,"/100")}${rate("Letterboxd",r.letterboxd,"/5")}</div>`:""}
           <h3>The insight I got</h3>
           ${uid ? `<textarea id="insight" data-field="insight" placeholder="${st==="watched"?"What stayed with you? What did it change in how you think?":"Fill this in after you've watched it."}">${esc(m.insight||"")}</textarea>
-          <h3>Remarks</h3>
+          <h3>Remarks <span class="fine" style="text-transform:none;letter-spacing:0">(friends can see this, with your username)</span></h3>
           <textarea id="remarks" data-field="remarks" style="min-height:80px" placeholder="Who recommended it, scenes to revisit, who to watch it with…">${esc(m.remarks||"")}</textarea>
           <div class="saved" id="savedMsg"></div>` : `<p class="fine">Sign in to keep private notes here.</p>`}
         </div>
@@ -332,15 +344,24 @@ import { store } from "./store.js";
           <div class="statusset">${["want","watching","watched"].map(s=>`<button class="chip" type="button" data-status="${s}" aria-pressed="${st===s}" ${uid?"":"disabled"}>${{want:"To watch",watching:"Watching",watched:"Seen"}[s]}</button>`).join("")}</div>
           <h3>Your verdict</h3>
           <div class="quills" role="group" aria-label="Your rating out of 5">${[1,2,3,4,5].map(n=>`<button type="button" data-stars="${n}" class="${(m.stars||0)>=n?"on":""}" aria-label="${n} of 5" ${uid?"":"disabled"}>✦</button>`).join("")}</div>
+          <h3>Best time to watch</h3>
+          <div class="statusset wrap">${BEST_TIMES.map(x=>`<button class="chip sm" type="button" data-besttime="${esc(x)}" aria-pressed="${m.bestTime===x}" ${uid?"":"disabled"}>${esc(x)}</button>`).join("")}</div>
+          <h3>How it left you</h3>
+          <div class="statusset wrap">${FEELINGS.map(x=>`<button class="chip sm" type="button" data-feeling="${esc(x)}" aria-pressed="${m.feeling===x}" ${uid?"":"disabled"}>${esc(x)}</button>`).join("")}</div>
+          <h3>What friends say</h3>
+          <div id="takes" class="fine">Loading…</div>
           <h3>Where to watch in India</h3>
           ${where.length ? `<div class="where">${where.map(w=>`<div class="svc"><span>${esc(w.service)}</span><span class="kind ${esc(w.kind)}">${esc(kindLbl(w.kind))}</span></div>`).join("")}</div>` : `<p class="fine">Not yet researched.</p>`}
           ${f.whereNote?`<p class="fine" style="margin-top:8px">${esc(f.whereNote)}</p>`:""}
           ${f.checked?`<p class="fine">Checked ${esc(f.checked)}. Licences shift month to month.</p>`:""}
-          ${f.pending && canWrite ? `<h3>Remove</h3><button class="btn ghost" type="button" id="rmPending">Remove from list</button>`:""}
+          ${f.pending && (f.addedBy===uid || me.admin) ? `<h3>Remove</h3><button class="btn ghost" type="button" id="rmPending">Remove from list</button>`:""}
         </div>
       </div>`;
     $(".m-close", modal).addEventListener("click", closeModal);
     modal.querySelectorAll("[data-status]").forEach(b => b.addEventListener("click", () => setMine(f.id,{status:b.dataset.status})));
+    modal.querySelectorAll("[data-besttime]").forEach(b => b.addEventListener("click", () => setMine(f.id,{bestTime:(mine[f.id]||{}).bestTime===b.dataset.besttime?"":b.dataset.besttime})));
+    modal.querySelectorAll("[data-feeling]").forEach(b => b.addEventListener("click", () => setMine(f.id,{feeling:(mine[f.id]||{}).feeling===b.dataset.feeling?"":b.dataset.feeling})));
+    loadTakes(f.id);
     modal.querySelectorAll("[data-stars]").forEach(b => b.addEventListener("click", () => { const n=+b.dataset.stars; setMine(f.id,{stars:((mine[f.id]||{}).stars===n?0:n)}); }));
     modal.querySelectorAll("textarea[data-field]").forEach(ta => {
       let t; ta.addEventListener("input", () => {
@@ -349,6 +370,18 @@ import { store } from "./store.js";
       });
     });
     $("#rmPending", modal)?.addEventListener("click", async () => { try{ await store.removeAddedFilm(f.id); await loadAdded(); closeModal(); }catch(e){ note("Couldn't remove that film."); } });
+  }
+
+  async function loadTakes(id){
+    const box = $("#takes", modal); if (!box) return;
+    try {
+      const all = await store.loadTakes(id); if (openId !== id) return;
+      const st = stats[id], others = all.filter(t => t.username !== me.name);
+      const head = st && st.seen ? `<p style="margin:0 0 8px">${st.seen} ${st.seen===1?"friend has":"friends have"} seen it${st.avg?`, average ★${esc(st.avg)}`:""}.</p>` : "";
+      const feel = {}; others.forEach(t => { if (t.feeling) feel[t.feeling] = (feel[t.feeling]||0)+1; });
+      const top = Object.entries(feel).sort((a,b)=>b[1]-a[1])[0];
+      box.innerHTML = head + (others.length ? `<div class="takes">${top && others.length>1 ? `<div class="why">Most common feeling afterwards: ${esc(top[0])}</div>`:""}${others.map(t => `<div class="take"><b>@${esc(t.username)}</b>${t.stars?` <span class="st">${"✦".repeat(t.stars)}</span>`:""}${t.remarks?`<div>${esc(t.remarks)}</div>`:""}<div class="why">${[t.best_time && "Best for: "+t.best_time, t.feeling && "Left them: "+t.feeling].filter(Boolean).map(esc).join(" · ")}</div></div>`).join("")}</div>` : "No friend has said anything about this one yet.");
+    } catch(e){ box.textContent = "Couldn't load friends' notes right now."; }
   }
 
   /* ---------- Add a film ---------- */
@@ -362,8 +395,8 @@ import { store } from "./store.js";
           <label class="f" for="aTitle">Title<input type="text" id="aTitle" required autocomplete="off" placeholder="e.g. Barry Lyndon"></label>
           <label class="f" for="aYear">Year, if you know it<input type="number" id="aYear" min="1890" max="2035" placeholder="1975"></label>
           <label class="f" for="aLang">Language<input type="text" id="aLang" autocomplete="off" placeholder="English" value="${esc(F.lang||"")}"></label>
-          <label class="f" for="aNote">Why it's on your list<textarea id="aNote" placeholder="Who recommended it, what you've heard…"></textarea></label>
-          <p class="fine">It lands in “Awaiting details”. Ask Claude in chat to research it and the mood, runtime, ratings and streaming will appear.</p>
+          <label class="f" for="aNote">Why it's on your list (friends can see this)<textarea id="aNote" placeholder="Who recommended it, what you've heard…"></textarea></label>
+          <p class="fine">It lands in “Awaiting details” for everyone, with your username on it. Just the title (spelled properly), year and language is plenty. The rest gets filled in later.</p>
           <div class="actions"><button class="btn primary" type="submit">Add to the salon</button><span class="saved" id="addMsg"></span></div>
         </div></form>`;
     scrim.classList.add("open"); document.body.style.overflow="hidden";
@@ -398,12 +431,12 @@ import { store } from "./store.js";
   function note(msg){ $("#notice").innerHTML = msg ? `<div class="status-note">${esc(msg)}</div>` : ""; }
   /* ---------- Data (Supabase, through store.js) ---------- */
   renderAll(); renderHero();
-  const loginEl = $("#login");
+  const loginEl = $("#login"), nameEl = $("#nameScrim");
   function refresh(){
     mergeFilms(); renderAll(); renderHero(); paintAll();
     if (openId){ const f = films.find(x=>x.id===openId); if (f && !(document.activeElement && document.activeElement.matches("textarea"))) renderModal(f); }
   }
-  async function loadAdded(){ addedFilms = await store.loadAddedFilms(); refresh(); }
+  async function loadAdded(){ addedFilms = await store.loadAddedFilms(); try { names = await store.loadUsernames(); } catch(e){} refresh(); }
   function applyRemoteNote(ev){
     const id = (ev.new && ev.new.film_id) || (ev.old && ev.old.film_id); if (!id) return;
     if (ev.eventType === "DELETE") delete mine[id];
@@ -411,10 +444,36 @@ import { store } from "./store.js";
     renderAll();
     if (openId===id && !(document.activeElement && document.activeElement.matches("textarea"))) renderModal(films.find(f=>f.id===id));
   }
+
+  /* Username: unique, any fun name. Friends only ever see this, never an email. */
+  function askUsername(){
+    return new Promise(resolve => {
+      nameEl.classList.add("open"); document.body.style.overflow = "hidden";
+      const input = $("#uName"), msg = $("#nameMsg"); input.focus();
+      let t; input.addEventListener("input", () => {
+        clearTimeout(t); const v = input.value.trim();
+        if (!v){ msg.textContent = ""; return; }
+        if (!/^[A-Za-z0-9_]{3,20}$/.test(v)){ msg.textContent = "3 to 20 letters, numbers or underscores."; return; }
+        t = setTimeout(async () => { try { msg.textContent = (await store.usernameTaken(v)) ? "That name is taken. Try another." : "Available."; } catch(e){ msg.textContent = ""; } }, 350);
+      });
+      $("#nameForm").addEventListener("submit", async e => {
+        e.preventDefault(); const v = input.value.trim();
+        if (!/^[A-Za-z0-9_]{3,20}$/.test(v)){ msg.textContent = "3 to 20 letters, numbers or underscores."; return; }
+        msg.textContent = "Saving…";
+        try { await store.createProfile(v); me.name = v; nameEl.classList.remove("open"); document.body.style.overflow = ""; resolve(); }
+        catch(err){ msg.textContent = err.taken ? "That name is taken. Try another." : "Couldn't save that. Try again."; }
+      });
+    });
+  }
+
   let started = false;
   async function start(user){
     if (started) return; started = true;
     uid = user.id; loginEl.classList.remove("open"); document.body.style.overflow = "";
+    let needName = false;
+    try { me.name = await store.getProfile(); needName = !me.name; } catch(e){}   // offline: carry on
+    if (needName) await askUsername();
+    $("#whoami").textContent = me.name ? "Signed in as @" + me.name : "";
     const timer = setTimeout(() => note("Still fetching your list… it may be out of date until the connection returns."), 10000);
     try {
       const [lists, added, notes] = await Promise.all([store.loadLists(), store.loadAddedFilms(), store.loadNotes()]);
@@ -425,34 +484,69 @@ import { store } from "./store.js";
     } catch(e){ note("Your list couldn't be reached. Reload the page in a little while."); }
     clearTimeout(timer);
     refresh();
+    // Extras: if any of these fail the shelf still works.
+    store.loadUsernames().then(n => { names = n; refresh(); }).catch(()=>{});
+    store.loadStats().then(s => { stats = s; renderRows(); observeCards(); }).catch(()=>{});
+    store.isAdmin().then(a => { me.admin = a; }).catch(()=>{});
     store.subscribeNotes(applyRemoteNote);
     store.subscribeAddedFilms(() => loadAdded().catch(()=>{}));
   }
 
+  /* ---------- Sign in / create account ---------- */
   function showLogin(){
     loginEl.classList.add("open"); document.body.style.overflow = "hidden";
-    const form = $("#loginForm"), codeForm = $("#codeForm"), msg = $("#loginMsg");
-    form.addEventListener("submit", async e => {
-      e.preventDefault(); const email = $("#loginEmail").value.trim(); if (!email) return;
-      msg.textContent = "Sending…";
-      try { await store.sendLink(email); msg.textContent = "A link is on its way. Open it on this device, or enter the 6-digit code from the same email."; codeForm.hidden = false; $("#loginCode").focus(); }
-      catch(err){ msg.textContent = "Couldn't send that. Only the salon's owner can sign in."; }
-    });
+    const msg = $("#loginMsg"), codeForm = $("#codeForm");
+    const email = () => $("#loginEmail").value.trim();
+    document.querySelectorAll("[data-lmode]").forEach(b => b.addEventListener("click", () => {
+      const up = b.dataset.lmode === "up";
+      document.querySelectorAll("[data-lmode]").forEach(x => x.setAttribute("aria-pressed", x === b));
+      $("#modeIn").hidden = up; $("#upForm").hidden = !up; msg.textContent = "";
+    }));
     $("#passForm").addEventListener("submit", async e => {
-      e.preventDefault(); const email = $("#loginEmail").value.trim(), pw = $("#loginPass").value;
-      if (!email || !pw){ msg.textContent = "Enter your email and password."; return; }
+      e.preventDefault();
+      if (!email() || !$("#loginPass").value){ msg.textContent = "Enter your email and password."; return; }
       msg.textContent = "Checking…";
-      try { start(await store.signInPassword(email, pw)); }
+      try { start(await store.signInPassword(email(), $("#loginPass").value)); }
       catch(err){ msg.textContent = "Email or password didn't match."; }
+    });
+    $("#loginForm").addEventListener("submit", async e => {
+      e.preventDefault(); if (!email()){ msg.textContent = "Enter your email first."; return; }
+      msg.textContent = "Sending…";
+      try { await store.sendLink(email()); msg.textContent = "A link is on its way. Open it on this device, or enter the 6-digit code if the email has one."; codeForm.hidden = false; $("#loginCode").focus(); }
+      catch(err){ msg.textContent = "Couldn't send that. If you're new, use Create account."; }
     });
     codeForm.addEventListener("submit", async e => {
       e.preventDefault(); msg.textContent = "Checking…";
-      try { const user = await store.verifyCode($("#loginEmail").value.trim(), $("#loginCode").value.trim()); start(user); }
+      try { start(await store.verifyCode(email(), $("#loginCode").value.trim())); }
       catch(err){ msg.textContent = "That code didn't work. Ask for a new one."; }
+    });
+    $("#upForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      if (!email() || $("#upPass").value.length < 6){ msg.textContent = "Enter your email and a password of 6 or more characters."; return; }
+      msg.textContent = "Creating your account…";
+      try {
+        const user = await store.signUp(email(), $("#upPass").value, $("#upCode").value.trim());
+        if (user) start(user); else msg.textContent = "Almost there. Check your email and click the confirmation link, then sign in here.";
+      } catch(err){
+        const m = String(err && err.message || "");
+        msg.textContent = /registered|already/i.test(m) ? "That email already has an account. Use Sign in."
+          : /password/i.test(m) ? "Use a password of 6 or more characters."
+          : "That invite code didn't work, or sign-ups are closed right now.";
+      }
     });
   }
 
+  /* ---------- Unseen-only mode ---------- */
+  const unseenBtn = $("#unseenBtn");
+  unseenBtn.setAttribute("aria-pressed", unseenOnly);
+  unseenBtn.addEventListener("click", () => {
+    unseenOnly = !unseenOnly; unseenBtn.setAttribute("aria-pressed", unseenOnly);
+    try { localStorage.setItem("salonUnseen", unseenOnly ? "1" : "0"); } catch(e){}
+    renderAll(); renderHero();
+  });
+
   (async () => {
+    if (import.meta.env.DEV && /[?&]mock/.test(location.search)) store = (await import("./store.mock.js")).store;
     if (!store.configured){ note("Supabase isn't configured. Copy .env.example to .env and fill in the two keys."); return; }
     let user = null;
     try { user = await store.init(); } catch(e){}

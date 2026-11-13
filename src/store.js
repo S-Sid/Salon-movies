@@ -38,6 +38,8 @@ const noteFromRow = r => ({
   insight: r.insight || "",
   remarks: r.remarks || "",
   stars: r.stars || 0,
+  bestTime: r.best_time || "",
+  feeling: r.feeling || "",
   updated: Number(r.updated) || 0,
 });
 
@@ -68,6 +70,13 @@ export const store = {
     });
     if (error) throw error;
   },
+  /* Create an account. The invite code travels with the sign-up and is checked in the database. */
+  async signUp(email, password, inviteCode) {
+    const { data, error } = await sb.auth.signUp({ email, password, options: { data: { invite_code: inviteCode || "" } } });
+    if (error) throw error;
+    if (data.session) { userId = data.user.id; return data.user; }
+    return null;   // email confirmation is on: the person must click the link we emailed
+  },
   async signInPassword(email, password) {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw error;
@@ -85,6 +94,32 @@ export const store = {
     await sb.auth.signOut();
   },
 
+  /* ----- usernames ----- */
+  async getProfile() {
+    const { data, error } = await sb.from("profiles").select("username").eq("user_id", userId).maybeSingle();
+    if (error) throw error;
+    return data ? data.username : null;
+  },
+  async usernameTaken(name) {
+    const { data, error } = await sb.from("profiles").select("user_id").ilike("username", name.replace(/[\\%_]/g, "\\$&")).limit(1);
+    if (error) throw error;
+    return data.length > 0;
+  },
+  async createProfile(username) {
+    const { error } = await sb.from("profiles").insert({ user_id: userId, username });
+    if (error) { const e = new Error(error.message); e.taken = error.code === "23505"; throw e; }
+  },
+  async loadUsernames() {
+    const { data, error } = await sb.from("profiles").select("user_id,username");
+    if (error) throw error;
+    const out = {}; data.forEach(r => { out[r.user_id] = r.username; });
+    return out;
+  },
+  async isAdmin() {
+    const { data } = await sb.from("admins").select("user_id").eq("user_id", userId).maybeSingle();
+    return !!data;
+  },
+
   /* ----- reads ----- */
   loadLists() {
     return cached("lists", async () => {
@@ -97,7 +132,7 @@ export const store = {
     return cached("added", async () => {
       const { data, error } = await sb.from("added_films").select("*");
       if (error) throw error;
-      return data.map(r => Object.assign({}, r.data, { id: r.id }));
+      return data.map(r => Object.assign({}, r.data, { id: r.id, addedBy: r.user_id }));
     });
   },
   loadNotes() {
@@ -110,17 +145,31 @@ export const store = {
     });
   },
 
+  /* What friends may see: username, stars, remarks, best time, feeling. Never email or private insight. */
+  async loadStats() {
+    const { data, error } = await sb.from("film_stats").select("*");
+    if (error) throw error;
+    const out = {}; data.forEach(r => { out[r.film_id] = { seen: r.seen_count, rated: r.rated_count, avg: r.avg_stars == null ? null : Number(r.avg_stars) }; });
+    return out;
+  },
+  async loadTakes(filmId) {
+    const { data, error } = await sb.from("public_takes").select("*").eq("film_id", filmId).order("updated", { ascending: false });
+    if (error) throw error;
+    return data;
+  },
+
   /* ----- writes ----- */
   async saveNote(filmId, n) {
     const { error } = await sb.from("notes").upsert({
       user_id: userId, film_id: filmId,
       status: n.status || "want", insight: n.insight || "", remarks: n.remarks || "",
-      stars: n.stars || 0, updated: n.updated || Date.now(),
+      stars: n.stars || 0, best_time: n.bestTime || "", feeling: n.feeling || "",
+      updated: n.updated || Date.now(),
     }, { onConflict: "user_id,film_id" });
     if (error) throw error;
   },
   async addFilm(id, film) {
-    const { error } = await sb.from("added_films").upsert({ id, user_id: userId, data: film });
+    const { error } = await sb.from("added_films").insert({ id, user_id: userId, data: film });
     if (error) throw error;
   },
   async removeAddedFilm(id) {

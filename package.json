@@ -1,0 +1,23 @@
+{
+  "name": "salon-of-sid",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "icons": "node scripts/make-icons.mjs",
+    "import": "node --env-file=.env.local scripts/import.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.0"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.5",
+    "vite": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

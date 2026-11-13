@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sid's Film Salon</title>
+<meta name="description" content="A private film watchlist, kept like a candlelit drawing room.">
+<meta name="theme-color" content="#140c12">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Salon">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;0,900;1,500;1,700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Pinyon+Script&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="intro" role="presentation" aria-hidden="true">
+  <div class="curtain l"></div><div class="curtain r"></div>
+  <div class="seal-wrap">
+    <div class="seal-glow"></div>
+    <svg class="seal" viewBox="0 0 240 240" aria-hidden="true">
+      <defs>
+        <radialGradient id="wax" cx="40%" cy="35%" r="70%">
+          <stop offset="0" stop-color="#c23a4c"/><stop offset=".55" stop-color="#8c1c2e"/><stop offset="1" stop-color="#4f0c17"/>
+        </radialGradient>
+      </defs>
+      <path d="M120 8c14 0 18 10 30 13s22-4 31 6 3 20 9 30 17 12 17 26-11 17-13 29 9 21 1 32-20 6-29 14-6 21-19 25-20-6-32-6-19 10-32 6-10-17-19-25-23-3-29-14 3-20 1-32-13-15-13-29 11-16 17-26 0-21 9-30 19-3 31-6 16-13 30-13z" fill="url(#wax)"/>
+      <circle class="ring" cx="120" cy="120" r="80" fill="none" stroke="#e8c47a" stroke-width="2.5"/>
+      <circle class="ring" cx="120" cy="120" r="70" fill="none" stroke="#e8c47a" stroke-width="1" stroke-dasharray="2 6"/>
+      <text class="mono" x="120" y="146" text-anchor="middle" font-family="Playfair Display, Georgia, serif" font-style="italic" font-weight="700" font-size="84" fill="#f4d48f">S</text>
+    </svg>
+    <div class="intro-word">the Salon is receiving</div>
+  </div>
+  <span class="intro-skip" id="introSkip">Click to enter</span>
+</div>
+
+<header id="hdr">
+  <a class="brand" href="#top"><b>SALON</b><i>of Sid</i></a>
+  <nav class="tabs" aria-label="Sections">
+    <button data-tab="home" aria-pressed="true">Home</button>
+    <button data-tab="genres" aria-pressed="false">Genres</button>
+    <button data-tab="moods" aria-pressed="false">Moods</button>
+    <button data-tab="watched" aria-pressed="false">Seen &amp; noted</button>
+  </nav>
+  <span class="spacer"></span>
+  <button class="btn gilt" id="addBtn" type="button">+ Add a film</button>
+</header>
+
+<section class="hero" id="top" aria-live="polite">
+  <div class="hero-art" id="heroArt"></div>
+  <div class="hero-copy" id="heroCopy">
+    <div class="eyebrow">Loading the guest list…</div>
+  </div>
+</section>
+
+<section class="evening" aria-labelledby="eveH">
+  <div class="eve-top"><h2 id="eveH">What is your humour this evening?</h2><span><button class="clear" type="button" id="clearAll" hidden>Clear all</button> <button class="clear filt-toggle" type="button" id="filtToggle" aria-expanded="false">More filters ▾</button></span></div>
+  <div class="chiprow" id="langChips"><span class="lbl">Language</span></div>
+  <div class="chiprow" id="genreChips"><span class="lbl">Genre <small>pick two to pair</small></span></div>
+  <div class="chiprow" id="comboChips"><span class="lbl">Pairings</span></div>
+  <div class="chiprow" id="moodChips"><span class="lbl">Mood</span></div>
+  <div class="chiprow" id="timeChips"><span class="lbl">Time you have</span></div>
+</section>
+
+<div id="notice"></div>
+<main id="rows"></main>
+
+<footer>
+  <span class="flour">Fin.</span>
+  <span>Ratings and streaming are for India. They change, so each film shows the date it was checked.</span>
+  <button type="button" id="replay">Replay the opening</button>
+  <button type="button" id="exportBtn">Export my data</button>
+  <button type="button" id="signOut">Sign out</button>
+  <div id="exportBox" hidden style="width:100%;margin-top:12px"><p id="exportMsg" style="font-size:14px;color:var(--muted)"></p>
+    <textarea readonly style="width:100%;height:140px;background:#120a0f;color:var(--ivory);border:1px solid var(--line);font:12px monospace"></textarea>
+    <button type="button" id="exportCopy">Copy</button></div>
+</footer>
+
+<div class="scrim" id="scrim" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="scrim" id="login" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <div class="modal" style="max-width:460px;margin:12vh auto 0">
+    <div class="m-body" style="grid-template-columns:1fr;padding:28px 24px 30px">
+      <div>
+        <div class="eyebrow">Admittance by invitation</div>
+        <h2 id="loginTitle" style="font-size:32px;font-style:italic;margin-bottom:14px">Sign in to the Salon</h2>
+        <form id="loginForm">
+          <label class="f" for="loginEmail">Your email<input type="email" id="loginEmail" required autocomplete="email" placeholder="you@example.com"></label>
+          <div class="actions"><button class="btn primary" type="submit">Send me a link</button></div>
+        </form>
+        <form id="passForm" style="margin-top:16px">
+          <label class="f" for="loginPass">Or use your password<input type="password" id="loginPass" autocomplete="current-password"></label>
+          <div class="actions"><button class="btn gilt" type="submit">Sign in with password</button></div>
+        </form>
+        <form id="codeForm" hidden style="margin-top:16px">
+          <label class="f" for="loginCode">6-digit code from the email<input type="text" id="loginCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="8"></label>
+          <div class="actions"><button class="btn gilt" type="submit">Enter</button></div>
+        </form>
+        <p class="saved" id="loginMsg" role="status" style="margin-top:12px"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

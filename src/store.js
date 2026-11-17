@@ -62,11 +62,11 @@ export const store = {
       setTimeout(() => cb(event, session ? session.user : null), 0);
     });
   },
-  /* shouldCreateUser:false => only the account you created in the dashboard can ever sign in. */
+  /* Passwordless: emails a one-time code (and link). A new email creates an account automatically. */
   async sendLink(email) {
     const { error } = await sb.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: false, emailRedirectTo: location.origin + "/" },
+      options: { shouldCreateUser: true, emailRedirectTo: location.origin + "/" },
     });
     if (error) throw error;
   },

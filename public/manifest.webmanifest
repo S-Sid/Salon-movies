@@ -1,13 +1,13 @@
 {
   "name": "Salon of Sid",
   "short_name": "Salon",
-  "description": "A private film watchlist, kept like a candlelit drawing room.",
+  "description": "A private film watchlist, kept like a mid-century cocktail lounge.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#140c12",
-  "theme_color": "#140c12",
+  "background_color": "#170909",
+  "theme_color": "#170909",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

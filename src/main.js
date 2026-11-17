@@ -1,7 +1,7 @@
 import "./styles.css";
 import { $, esc, reduce, fmtTime, pal, safeCol } from "./util.js";
 import { MOODS, GENRES, PAIRINGS, GENRE_ROW, TIMES, BEST_TIMES, FEELINGS, AUDIENCES } from "./vocab.js";
-import { sceneCache, drawScene } from "./scenes.js";
+import { sceneCache, drawScene, posterBg } from "./scenes.js";
 import { store as realStore } from "./store.js";
 import { initCat } from "./cat.js";
 
@@ -43,9 +43,8 @@ import { initCat } from "./cat.js";
 
   const statusOf = f => (mine[f.id] && mine[f.id].status) || "want";
   function paint(f){
-    if (sceneCache[f.id]) return `url(${sceneCache[f.id]}) center/cover no-repeat, #140c12`;
-    const p = pal(f).map(safeCol); const [a,b] = p, c = p[2] || "#c9a55e";
-    return `radial-gradient(120% 90% at 18% 20%, ${a} 0%, transparent 60%), radial-gradient(90% 80% at 85% 85%, ${c}55 0%, transparent 55%), radial-gradient(70% 70% at 70% 30%, ${b} 0%, transparent 70%), linear-gradient(135deg, ${b}, #120a10)`;
+    if (sceneCache[f.id]) return `url(${sceneCache[f.id]}) center/cover no-repeat, #170909`;
+    return `radial-gradient(rgba(0,0,0,.35) 1px, transparent 1.4px) 0 0/6px 6px, ${posterBg(f)}`;   // flat poster colour until the art is drawn
   }
   const hasAll = (arr, need) => need.every(g => (arr||[]).includes(g));
   const countWith = gs => films.filter(f => !f.pending && hasAll(f.genres, gs)).length;
@@ -170,7 +169,7 @@ import { initCat } from "./cat.js";
     heroFilm = f;
     const art = $("#heroArt"), copy = $("#heroCopy");
     if (!f){
-      art.style.background = "radial-gradient(80% 80% at 70% 30%, #4a1c2c, #140c12)";
+      art.style.background = "radial-gradient(80% 80% at 70% 30%, #5a1a14, #170909)";
       art.innerHTML = '<div class="frame"></div>';
       copy.innerHTML = `<div class="eyebrow">An empty drawing room</div><h1>Your salon awaits its first title</h1>
         <p class="hook">Add a film with just its title, year and language. Details like mood, running time, ratings and where to stream it in India get filled in afterwards.</p>
@@ -399,7 +398,7 @@ import { initCat } from "./cat.js";
   $("#addBtn").addEventListener("click", openAdd);
   function openAdd(){
     lastFocus = document.activeElement; openId = null;
-    modal.innerHTML = `<div class="m-art" style="aspect-ratio:16/5"><div class="paint" style="position:absolute;inset:0;background:radial-gradient(90% 90% at 20% 20%,#6b2a3c,transparent 60%),linear-gradient(135deg,#3b1d2b,#140c12)"></div>
+    modal.innerHTML = `<div class="m-art" style="aspect-ratio:16/5"><div class="paint" style="position:absolute;inset:0;background:radial-gradient(90% 90% at 20% 20%,#8a2a1c,transparent 60%),linear-gradient(135deg,#4a1812,#170909)"></div>
       <button class="round m-close" type="button" aria-label="Close">✕</button><h2 id="mTitle">Add a film to the list</h2></div>
       <form class="m-body" id="addForm" style="grid-template-columns:1fr">
         <div>
@@ -545,7 +544,7 @@ import { initCat } from "./cat.js";
         <h3>Members (${members.length})</h3>
         <div class="takes">${members.map(m => `<div class="take"><b>@${esc(names[m.userId] || "someone")}</b>${m.role==="admin" ? ' <span class="fine">admin</span>' : ""}${g.role==="admin" && m.userId!==uid ? ` <button class="btn ghost" type="button" data-gremove="${esc(m.userId)}" style="padding:2px 10px;font-size:13px;margin-left:8px">Remove</button>` : ""}</div>`).join("")}</div>
         <div class="actions" style="margin-top:12px"><button class="btn ghost" type="button" id="gLeave">Leave this group</button></div>` : "";
-    modal.innerHTML = `<div class="m-art" style="aspect-ratio:16/5"><div class="paint" style="position:absolute;inset:0;background:radial-gradient(90% 90% at 20% 20%,#6b2a3c,transparent 60%),linear-gradient(135deg,#3b1d2b,#140c12)"></div>
+    modal.innerHTML = `<div class="m-art" style="aspect-ratio:16/5"><div class="paint" style="position:absolute;inset:0;background:radial-gradient(90% 90% at 20% 20%,#8a2a1c,transparent 60%),linear-gradient(135deg,#4a1812,#170909)"></div>
       ${gate ? "" : '<button class="round m-close" type="button" aria-label="Close">✕</button>'}<h2 id="mTitle">${gate ? "Start or join a group" : "Groups"}</h2></div>
       <div class="m-body" id="groupsPanel" style="grid-template-columns:1fr"><div>
         ${gate ? `<p>A group is a shared shelf for you and your friends. Create one and share its code, or join one with a code a friend gave you.</p>` : ""}
@@ -604,11 +603,6 @@ import { initCat } from "./cat.js";
     loginEl.classList.add("open"); document.body.style.overflow = "hidden";
     const msg = $("#loginMsg"), codeForm = $("#codeForm");
     const email = () => $("#loginEmail").value.trim();
-    document.querySelectorAll("[data-lmode]").forEach(b => b.addEventListener("click", () => {
-      const up = b.dataset.lmode === "up";
-      document.querySelectorAll("[data-lmode]").forEach(x => x.setAttribute("aria-pressed", x === b));
-      $("#modeIn").hidden = up; $("#upForm").hidden = !up; msg.textContent = "";
-    }));
     $("#passForm").addEventListener("submit", async e => {
       e.preventDefault();
       if (!email() || !$("#loginPass").value){ msg.textContent = "Enter your email and password."; return; }
@@ -618,28 +612,15 @@ import { initCat } from "./cat.js";
     });
     $("#loginForm").addEventListener("submit", async e => {
       e.preventDefault(); if (!email()){ msg.textContent = "Enter your email first."; return; }
-      msg.textContent = "Sending…";
-      try { await store.sendLink(email()); msg.textContent = "A link is on its way. Open it on this device, or enter the 6-digit code if the email has one."; codeForm.hidden = false; $("#loginCode").focus(); }
-      catch(err){ msg.textContent = "Couldn't send that. If you're new, use Create account."; }
+      msg.textContent = "Sending…"; $("#sendBtn").disabled = true;
+      try { await store.sendLink(email()); msg.textContent = "Code sent."; codeForm.hidden = false; $("#sendBtn").textContent = "Send again"; $("#loginCode").focus(); }
+      catch(err){ msg.textContent = /rate|limit|seconds|too many/i.test(String(err && err.message)) ? "Too many emails just now. Wait a minute and try again." : "Couldn't send that. Check the email address and try again."; }
+      setTimeout(() => { $("#sendBtn").disabled = false; }, 20000);
     });
     codeForm.addEventListener("submit", async e => {
       e.preventDefault(); msg.textContent = "Checking…";
       try { start(await store.verifyCode(email(), $("#loginCode").value.trim())); }
-      catch(err){ msg.textContent = "That code didn't work. Ask for a new one."; }
-    });
-    $("#upForm").addEventListener("submit", async e => {
-      e.preventDefault();
-      if (!email() || $("#upPass").value.length < 6){ msg.textContent = "Enter your email and a password of 6 or more characters."; return; }
-      msg.textContent = "Creating your account…";
-      try {
-        const user = await store.signUp(email(), $("#upPass").value);
-        if (user) start(user); else msg.textContent = "Almost there. Check your email and click the confirmation link, then sign in here.";
-      } catch(err){
-        const m = String(err && err.message || "");
-        msg.textContent = /registered|already/i.test(m) ? "That email already has an account. Use Sign in."
-          : /password/i.test(m) ? "Use a password of 6 or more characters."
-          : "Couldn't create the account right now. Try again in a moment.";
-      }
+      catch(err){ msg.textContent = "That code didn't work or has expired. Send a new one."; }
     });
   }
 

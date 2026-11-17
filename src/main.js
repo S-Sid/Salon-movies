@@ -29,6 +29,8 @@ import { store as realStore } from "./store.js";
   const F = {lang:null, svc:null, genres:[], mood:null, time:null, aud:null};
   const AUD_CHIPS = [{id:"fam", label:"Family-friendly", test:a=>a==="Kids"||a==="Family"},{id:"teen", label:"Teens 13+", test:a=>a==="Teens 13+"},{id:"adult", label:"Adults only", test:a=>a==="Adults only"}];
   let me = {name:null, admin:false}, names = {}, stats = {};
+  let groups = [], gid = null;   // the groups I belong to, and the one on screen
+  const curGroup = () => groups.find(g => g.id === gid) || null;
   let unseenOnly = false; try { unseenOnly = localStorage.getItem("salonUnseen")==="1"; } catch(e){}
   let tab = "home";
   let uid = null, canWrite = true, heroFilm = null, heroStarted = false;
@@ -307,6 +309,8 @@ import { store as realStore } from "./store.js";
   }
   function closeModal(){
     if (!scrim.classList.contains("open")) return;
+    if (scrim.dataset.gate === "1" && !gid) return;   // first-time screen: must create or join a group first
+    scrim.dataset.gate = "";
     scrim.classList.remove("open"); document.body.style.overflow=""; openId=null;
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
@@ -369,13 +373,13 @@ import { store as realStore } from "./store.js";
         t=setTimeout(()=>setMine(f.id,{[ta.dataset.field]:ta.value}, true).then(ok=>{ const s=$("#savedMsg"); if(s) s.textContent= ok?"Saved to your private notes.":"Couldn't save. Check you're signed in."; }), 900);
       });
     });
-    $("#rmPending", modal)?.addEventListener("click", async () => { try{ await store.removeAddedFilm(f.id); await loadAdded(); closeModal(); }catch(e){ note("Couldn't remove that film."); } });
+    $("#rmPending", modal)?.addEventListener("click", async () => { try{ await store.removeAddedFilm(gid, f.id); await loadAdded(); closeModal(); }catch(e){ note("Couldn't remove that film."); } });
   }
 
   async function loadTakes(id){
     const box = $("#takes", modal); if (!box) return;
     try {
-      const all = await store.loadTakes(id); if (openId !== id) return;
+      const all = await store.loadTakes(gid, id); if (openId !== id) return;
       const st = stats[id], others = all.filter(t => t.username !== me.name);
       const head = st && st.seen ? `<p style="margin:0 0 8px">${st.seen} ${st.seen===1?"friend has":"friends have"} seen it${st.avg?`, average ★${esc(st.avg)}`:""}.</p>` : "";
       const feel = {}; others.forEach(t => { if (t.feeling) feel[t.feeling] = (feel[t.feeling]||0)+1; });
@@ -396,7 +400,7 @@ import { store as realStore } from "./store.js";
           <label class="f" for="aYear">Year, if you know it<input type="number" id="aYear" min="1890" max="2035" placeholder="1975"></label>
           <label class="f" for="aLang">Language<input type="text" id="aLang" autocomplete="off" placeholder="English" value="${esc(F.lang||"")}"></label>
           <label class="f" for="aNote">Why it's on your list (friends can see this)<textarea id="aNote" placeholder="Who recommended it, what you've heard…"></textarea></label>
-          <p class="fine">It lands in “Awaiting details” for everyone, with your username on it. Just the title (spelled properly), year and language is plenty. The rest gets filled in later.</p>
+          <p class="fine">It lands in “Awaiting details” for everyone in this group, with your username on it. Just the title (spelled properly), year and language is plenty. The rest gets filled in later.</p>
           <div class="actions"><button class="btn primary" type="submit">Add to the salon</button><span class="saved" id="addMsg"></span></div>
         </div></form>`;
     scrim.classList.add("open"); document.body.style.overflow="hidden";
@@ -411,7 +415,7 @@ import { store as realStore } from "./store.js";
       if (films.find(f=>f.id===id)){ $("#addMsg").textContent = "That film is already on your list."; return; }
       $("#addMsg").textContent = "Adding…";
       try{
-        await store.addFilm(id, {title, year, language, pending:true, order:Date.now()});
+        await store.addFilm(gid, id, {title, year, language, pending:true, order:Date.now()});
         if (note && uid) await setMine(id,{remarks:note, status:"want"});
         await loadAdded();
         closeModal();
@@ -436,7 +440,7 @@ import { store as realStore } from "./store.js";
     mergeFilms(); renderAll(); renderHero(); paintAll();
     if (openId){ const f = films.find(x=>x.id===openId); if (f && !(document.activeElement && document.activeElement.matches("textarea"))) renderModal(f); }
   }
-  async function loadAdded(){ addedFilms = await store.loadAddedFilms(); try { names = await store.loadUsernames(); } catch(e){} refresh(); }
+  async function loadAdded(){ if (!gid) return; addedFilms = await store.loadAddedFilms(gid); try { names = await store.loadUsernames(); } catch(e){} refresh(); }
   function applyRemoteNote(ev){
     const id = (ev.new && ev.new.film_id) || (ev.old && ev.old.film_id); if (!id) return;
     if (ev.eventType === "DELETE") delete mine[id];
@@ -474,22 +478,118 @@ import { store as realStore } from "./store.js";
     try { me.name = await store.getProfile(); needName = !me.name; } catch(e){}   // offline: carry on
     if (needName) await askUsername();
     $("#whoami").textContent = me.name ? "Signed in as @" + me.name : "";
+    try { mine = await store.loadNotes(); } catch(e){}
+    try { groups = await store.loadGroups(); } catch(e){ note("Your groups couldn't be reached. Reload the page in a little while."); }
+    $("#groupBtn").hidden = false;
+    store.subscribeNotes(applyRemoteNote);
+    store.subscribeAddedFilms(() => { if (groupsBusy) return; reloadGroups().catch(()=>{}); });
+    let want = null; try { want = localStorage.getItem("salonGroup"); } catch(e){}
+    gid = (groups.find(g => g.id === want) || groups[0] || {}).id || null;
+    if (!gid) { refresh(); openGroups(true); return; }
+    await loadGroup();
+  }
+
+  /* ---------- Groups ---------- */
+  let groupsBusy = false;
+  async function loadGroup(){
+    me.admin = !!(curGroup() && curGroup().role === "admin");
+    $("#groupBtn").textContent = curGroup() ? curGroup().name : "Groups";
+    try { localStorage.setItem("salonGroup", gid || ""); } catch(e){}
+    listFilms = []; addedFilms = []; stats = {}; rawLists = []; heroFilm = null; mergeFilms();
     const timer = setTimeout(() => note("Still fetching your list… it may be out of date until the connection returns."), 10000);
     try {
-      const [lists, added, notes] = await Promise.all([store.loadLists(), store.loadAddedFilms(), store.loadNotes()]);
-      rawLists = lists; addedFilms = added; mine = notes;
-      listFilms = [];
+      const [lists, added] = await Promise.all([store.loadLists(gid), store.loadAddedFilms(gid)]);
+      rawLists = lists; addedFilms = added;
       lists.forEach(L => (L.films||[]).forEach(f => listFilms.push(Object.assign({language: L.language || "English", checked: L.checked}, f))));
       note(store.offline ? "You're offline. Showing the last list saved on this device." : "");
     } catch(e){ note("Your list couldn't be reached. Reload the page in a little while."); }
     clearTimeout(timer);
     refresh();
-    // Extras: if any of these fail the shelf still works.
     store.loadUsernames().then(n => { names = n; refresh(); }).catch(()=>{});
-    store.loadStats().then(s => { stats = s; renderRows(); observeCards(); }).catch(()=>{});
-    store.isAdmin().then(a => { me.admin = a; }).catch(()=>{});
-    store.subscribeNotes(applyRemoteNote);
-    store.subscribeAddedFilms(() => loadAdded().catch(()=>{}));
+    store.loadStats(gid).then(st => { stats = st; renderRows(); observeCards(); }).catch(()=>{});
+  }
+  /* Membership or films changed somewhere: refresh my groups, then the shelf. */
+  async function reloadGroups(){
+    groups = await store.loadGroups();
+    if (!groups.find(g => g.id === gid)) gid = groups[0] ? groups[0].id : null;
+    if (!gid) { listFilms = []; addedFilms = []; mergeFilms(); refresh(); $("#groupBtn").textContent = "Groups"; openGroups(true); return; }
+    me.admin = curGroup().role === "admin"; $("#groupBtn").textContent = curGroup().name;
+    await loadAdded();
+    if (scrim.classList.contains("open") && !openId && modal.querySelector("#groupsPanel")) openGroups();
+  }
+  async function switchGroup(id){
+    if (id === gid) return; gid = id; closeModal(); window.scrollTo({top:0});
+    await loadGroup();
+  }
+  $("#groupBtn").addEventListener("click", () => openGroups());
+
+  async function openGroups(gate, flash){
+    lastFocus = document.activeElement; openId = null;
+    const g = curGroup();
+    let members = [];
+    if (g) { try { members = await store.loadMembers(g.id); names = Object.assign({}, names, await store.loadUsernames()); } catch(e){} }
+    const switcher = groups.length ? `<h3>Your groups</h3><div class="statusset wrap">${groups.map(x => `<button class="chip" type="button" data-gswitch="${esc(x.id)}" aria-pressed="${x.id===gid}">${esc(x.name)}</button>`).join("")}</div>` : "";
+    const detail = g ? `<h3>${esc(g.name)}</h3>
+        <p class="fine" style="margin:0 0 6px">Join code. Share it with friends so they can join this group.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><code id="gCode" style="font-size:20px;letter-spacing:.12em;color:var(--gilt)">${esc(g.code)}</code>
+          <button class="btn ghost" type="button" id="gCopy">Copy invite</button>
+          ${g.role==="admin" ? `<button class="btn ghost" type="button" id="gRegen">New code</button><button class="btn ghost" type="button" id="gRename">Rename</button>` : ""}</div>
+        ${g.role==="admin" ? `<p class="fine" style="margin-top:6px">“New code” stops the old one working. People already in stay in.</p>` : ""}
+        <h3>Members (${members.length})</h3>
+        <div class="takes">${members.map(m => `<div class="take"><b>@${esc(names[m.userId] || "someone")}</b>${m.role==="admin" ? ' <span class="fine">admin</span>' : ""}${g.role==="admin" && m.userId!==uid ? ` <button class="btn ghost" type="button" data-gremove="${esc(m.userId)}" style="padding:2px 10px;font-size:13px;margin-left:8px">Remove</button>` : ""}</div>`).join("")}</div>
+        <div class="actions" style="margin-top:12px"><button class="btn ghost" type="button" id="gLeave">Leave this group</button></div>` : "";
+    modal.innerHTML = `<div class="m-art" style="aspect-ratio:16/5"><div class="paint" style="position:absolute;inset:0;background:radial-gradient(90% 90% at 20% 20%,#6b2a3c,transparent 60%),linear-gradient(135deg,#3b1d2b,#140c12)"></div>
+      ${gate ? "" : '<button class="round m-close" type="button" aria-label="Close">✕</button>'}<h2 id="mTitle">${gate ? "Start or join a group" : "Groups"}</h2></div>
+      <div class="m-body" id="groupsPanel" style="grid-template-columns:1fr"><div>
+        ${gate ? `<p>A group is a shared shelf for you and your friends. Create one and share its code, or join one with a code a friend gave you.</p>` : ""}
+        ${switcher}${detail}
+        <h3>Create a new group</h3>
+        <form id="gNew" style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" id="gNewName" maxlength="40" required placeholder="e.g. Weekend watchers" style="flex:1;min-width:180px"><button class="btn primary" type="submit">Create</button></form>
+        <h3>Join with a code</h3>
+        <form id="gJoin" style="display:flex;gap:8px;flex-wrap:wrap"><input type="text" id="gJoinCode" required autocomplete="off" placeholder="e.g. K7Q2M-9XPLA" style="flex:1;min-width:180px"><button class="btn primary" type="submit">Join</button></form>
+        <p class="saved" id="gMsg" role="status" style="margin-top:10px">${esc(flash||"")}</p>
+      </div></div>`;
+    scrim.classList.add("open"); document.body.style.overflow = "hidden";
+    scrim.dataset.gate = gate ? "1" : "";
+    const msg = t => { $("#gMsg").textContent = t; };
+    $(".m-close", modal)?.addEventListener("click", closeModal);
+    modal.querySelectorAll("[data-gswitch]").forEach(b => b.addEventListener("click", () => switchGroup(b.dataset.gswitch)));
+    $("#gCopy")?.addEventListener("click", async () => {
+      const text = `Join my group "${g.name}" on the Salon: ${location.origin}\nCreate an account, then choose Join with a code: ${g.code}`;
+      try { await navigator.clipboard.writeText(text); msg("Invite copied. Paste it to your friends."); } catch(e){ msg("Copy this code: " + g.code); }
+    });
+    $("#gRegen")?.addEventListener("click", async () => {
+      if (!confirm("Make a new code? The old one will stop working.")) return;
+      try { g.code = await store.regenerateCode(g.id); openGroups(false, "New code made."); } catch(e){ msg("Couldn't change the code."); }
+    });
+    $("#gRename")?.addEventListener("click", async () => {
+      const n = (prompt("New group name", g.name) || "").trim(); if (!n) return;
+      try { await store.renameGroup(g.id, n); g.name = n; $("#groupBtn").textContent = n; openGroups(false, "Renamed."); } catch(e){ msg("Couldn't rename it."); }
+    });
+    modal.querySelectorAll("[data-gremove]").forEach(b => b.addEventListener("click", async () => {
+      if (!confirm("Remove @" + (names[b.dataset.gremove] || "this member") + " from the group?")) return;
+      try { await store.removeMember(g.id, b.dataset.gremove); openGroups(false, "Removed."); } catch(e){ msg("Couldn't remove them."); }
+    }));
+    $("#gLeave")?.addEventListener("click", async () => {
+      if (!confirm("Leave " + g.name + "? You can rejoin later with its code.")) return;
+      groupsBusy = true;
+      try { await store.leaveGroup(g.id); await reloadGroups(); if (gid) { closeModal(); await loadGroup(); } } catch(e){ msg("Couldn't leave."); }
+      groupsBusy = false;
+    });
+    $("#gNew").addEventListener("submit", async e => {
+      e.preventDefault(); const name = $("#gNewName").value.trim(); if (!name) return;
+      msg("Creating…"); groupsBusy = true;
+      try { const id = await store.createGroup(name); groups = await store.loadGroups(); gid = id; await loadGroup(); openGroups(false, "Created. Share the code below with your friends."); }
+      catch(err){ msg("Couldn't create it. Try again in a moment."); }
+      groupsBusy = false;
+    });
+    $("#gJoin").addEventListener("submit", async e => {
+      e.preventDefault(); const code = $("#gJoinCode").value.trim(); if (!code) return;
+      msg("Joining…"); groupsBusy = true;
+      try { const id = await store.joinGroup(code); groups = await store.loadGroups(); gid = id; await loadGroup(); openGroups(false, "You're in."); }
+      catch(err){ msg(err.unknown ? "That code didn't match any group. Check it with your friend." : "Couldn't join. Try again in a moment."); }
+      groupsBusy = false;
+    });
   }
 
   /* ---------- Sign in / create account ---------- */
@@ -525,13 +625,13 @@ import { store as realStore } from "./store.js";
       if (!email() || $("#upPass").value.length < 6){ msg.textContent = "Enter your email and a password of 6 or more characters."; return; }
       msg.textContent = "Creating your account…";
       try {
-        const user = await store.signUp(email(), $("#upPass").value, $("#upCode").value.trim());
+        const user = await store.signUp(email(), $("#upPass").value);
         if (user) start(user); else msg.textContent = "Almost there. Check your email and click the confirmation link, then sign in here.";
       } catch(err){
         const m = String(err && err.message || "");
         msg.textContent = /registered|already/i.test(m) ? "That email already has an account. Use Sign in."
           : /password/i.test(m) ? "Use a password of 6 or more characters."
-          : "That invite code didn't work, or sign-ups are closed right now.";
+          : "Couldn't create the account right now. Try again in a moment.";
       }
     });
   }

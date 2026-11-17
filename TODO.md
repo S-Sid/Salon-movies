@@ -19,7 +19,15 @@ Live site: https://salonsid.netlify.app  (GitHub: https://github.com/S-Sid/Salon
 - [ ] Decide the web address: Netlify > Site configuration > Change site name (do this BEFORE sharing the link; then update the Supabase URLs above)
 - [ ] Decide the on-screen name (header "SALON of Sid", tab title, phone icon label)
 
-## Friends version: BUILT LOCALLY, NOT LIVE YET
+## Groups version: BUILT LOCALLY, NOT LIVE YET (supersedes the single shared shelf + invite code)
+Anyone creates groups; each group has its own join code, shelf, and member list. Your 201 films become the group "Sid's Salon". Sign-up becomes open (no site-wide invite code). Mock test: http://localhost:5173/?mock (add &nogroups for first-time screen).
+To go live, IN THIS ORDER:
+1. [ ] Supabase > SQL Editor: run `supabase/migration-3-groups.sql` (after migration-2, which is already done)
+2. [ ] Authentication > Sign In / Providers: "Allow new users to sign up" ON, "Confirm email" OFF
+3. [ ] Ask Claude to commit + push. Then open the site: Groups button (top right) shows the join code to share.
+Note: `npm run enrich` needs SUPABASE_SERVICE_ROLE_KEY again in .env.local (removed after the import); remove it again afterwards.
+
+## Friends version (older step, superseded above): BUILT LOCALLY, NOT LIVE YET
 Code is written and tested with a dev-only mock (open http://localhost:5173/?mock). To go live, IN THIS ORDER:
 1. [ ] Supabase > SQL Editor: run `supabase/migration-2-friends.sql` (makes you the admin, closes sign-ups with a random invite code)
 2. [ ] Set the invite code: `update public.app_settings set value = 'yourword' where key = 'invite_code';`

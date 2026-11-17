@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 /* The only file that knows about Supabase. main.js talks to `store`.
-   Tables: lists (films as jsonb), added_films, notes. Row-level security
+   Tables: groups, group_members, lists (films as jsonb), added_films, notes. Row-level security
    (see supabase/schema.sql) means only the signed-in owner can read or write. */
 
 const SB_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -70,9 +70,9 @@ export const store = {
     });
     if (error) throw error;
   },
-  /* Create an account. The invite code travels with the sign-up and is checked in the database. */
-  async signUp(email, password, inviteCode) {
-    const { data, error } = await sb.auth.signUp({ email, password, options: { data: { invite_code: inviteCode || "" } } });
+  /* Create an account. Sign-up is open; groups (with their own join codes) decide who sees what. */
+  async signUp(email, password) {
+    const { data, error } = await sb.auth.signUp({ email, password });
     if (error) throw error;
     if (data.session) { userId = data.user.id; return data.user; }
     return null;   // email confirmation is on: the person must click the link we emailed
@@ -101,9 +101,9 @@ export const store = {
     return data ? data.username : null;
   },
   async usernameTaken(name) {
-    const { data, error } = await sb.from("profiles").select("user_id").ilike("username", name.replace(/[\\%_]/g, "\\$&")).limit(1);
+    const { data, error } = await sb.rpc("username_available", { name });
     if (error) throw error;
-    return data.length > 0;
+    return !data;
   },
   async createProfile(username) {
     const { error } = await sb.from("profiles").insert({ user_id: userId, username });
@@ -115,22 +115,55 @@ export const store = {
     const out = {}; data.forEach(r => { out[r.user_id] = r.username; });
     return out;
   },
-  async isAdmin() {
-    const { data } = await sb.from("admins").select("user_id").eq("user_id", userId).maybeSingle();
-    return !!data;
+
+  /* ----- groups ----- */
+  async loadGroups() {
+    const { data, error } = await sb.from("group_members").select("role, groups(id,name,code)").eq("user_id", userId);
+    if (error) throw error;
+    return data.filter(r => r.groups).map(r => ({ id: r.groups.id, name: r.groups.name, code: r.groups.code, role: r.role }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   },
+  async createGroup(name) {
+    const { data, error } = await sb.rpc("create_group", { group_name: name });
+    if (error) throw error;
+    return data.id;
+  },
+  async joinGroup(code) {
+    const { data, error } = await sb.rpc("join_group", { join_code: code });
+    if (error) { const e = new Error(error.message); e.unknown = /unknown code/.test(error.message); throw e; }
+    return data.id;
+  },
+  async regenerateCode(gid) {
+    const { data, error } = await sb.rpc("regenerate_group_code", { gid });
+    if (error) throw error;
+    return data;
+  },
+  async renameGroup(gid, name) {
+    const { error } = await sb.rpc("rename_group", { gid, new_name: name });
+    if (error) throw error;
+  },
+  async loadMembers(gid) {
+    const { data, error } = await sb.from("group_members").select("user_id, role").eq("group_id", gid);
+    if (error) throw error;
+    return data.map(r => ({ userId: r.user_id, role: r.role }));
+  },
+  async removeMember(gid, uid) {
+    const { error } = await sb.from("group_members").delete().eq("group_id", gid).eq("user_id", uid);
+    if (error) throw error;
+  },
+  async leaveGroup(gid) { return this.removeMember(gid, userId); },
 
   /* ----- reads ----- */
-  loadLists() {
-    return cached("lists", async () => {
-      const { data, error } = await sb.from("lists").select("*").order("sort_order", { ascending: true });
+  loadLists(gid) {
+    return cached("lists:" + gid, async () => {
+      const { data, error } = await sb.from("lists").select("*").eq("group_id", gid).order("sort_order", { ascending: true });
       if (error) throw error;
       return data.map(r => ({ id: r.id, name: r.name, language: r.language, order: r.sort_order, checked: r.checked, films: r.films || [] }));
     });
   },
-  loadAddedFilms() {
-    return cached("added", async () => {
-      const { data, error } = await sb.from("added_films").select("*");
+  loadAddedFilms(gid) {
+    return cached("added:" + gid, async () => {
+      const { data, error } = await sb.from("added_films").select("*").eq("group_id", gid);
       if (error) throw error;
       return data.map(r => Object.assign({}, r.data, { id: r.id, addedBy: r.user_id }));
     });
@@ -146,14 +179,14 @@ export const store = {
   },
 
   /* What friends may see: username, stars, remarks, best time, feeling. Never email or private insight. */
-  async loadStats() {
-    const { data, error } = await sb.from("film_stats").select("*");
+  async loadStats(gid) {
+    const { data, error } = await sb.from("film_stats").select("*").eq("group_id", gid);
     if (error) throw error;
     const out = {}; data.forEach(r => { out[r.film_id] = { seen: r.seen_count, rated: r.rated_count, avg: r.avg_stars == null ? null : Number(r.avg_stars) }; });
     return out;
   },
-  async loadTakes(filmId) {
-    const { data, error } = await sb.from("public_takes").select("*").eq("film_id", filmId).order("updated", { ascending: false });
+  async loadTakes(gid, filmId) {
+    const { data, error } = await sb.from("public_takes").select("*").eq("group_id", gid).eq("film_id", filmId).order("updated", { ascending: false });
     if (error) throw error;
     return data;
   },
@@ -168,12 +201,12 @@ export const store = {
     }, { onConflict: "user_id,film_id" });
     if (error) throw error;
   },
-  async addFilm(id, film) {
-    const { error } = await sb.from("added_films").insert({ id, user_id: userId, data: film });
+  async addFilm(gid, id, film) {
+    const { error } = await sb.from("added_films").insert({ id, group_id: gid, user_id: userId, data: film });
     if (error) throw error;
   },
-  async removeAddedFilm(id) {
-    const { error } = await sb.from("added_films").delete().eq("id", id);
+  async removeAddedFilm(gid, id) {
+    const { error } = await sb.from("added_films").delete().eq("group_id", gid).eq("id", id);
     if (error) throw error;
   },
 
@@ -186,6 +219,7 @@ export const store = {
   subscribeAddedFilms(cb) {
     channels.push(sb.channel("added-sync")
       .on("postgres_changes", { event: "*", schema: "public", table: "added_films" }, () => cb())
+      .on("postgres_changes", { event: "*", schema: "public", table: "group_members" }, () => cb())
       .subscribe());
   },
 };

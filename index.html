@@ -48,6 +48,7 @@
     <button data-tab="watched" aria-pressed="false">Seen &amp; noted</button>
   </nav>
   <span class="spacer"></span>
+  <button class="chip" id="groupBtn" type="button" title="Your groups" hidden>Groups</button>
   <button class="chip" id="unseenBtn" type="button" aria-pressed="false" title="Hide films you have already seen">Unseen only</button>
   <button class="btn gilt" id="addBtn" type="button">+ Add a film</button>
 </header>
@@ -112,9 +113,8 @@
         </div>
         <form id="upForm" hidden>
           <label class="f" for="upPass">Choose a password (6 or more characters)<input type="password" id="upPass" autocomplete="new-password"></label>
-          <label class="f" for="upCode">Invite code<input type="text" id="upCode" autocomplete="off" placeholder="ask the friend who shared this"></label>
           <div class="actions"><button class="btn primary" type="submit">Create my account</button></div>
-          <p class="fine" style="margin-top:8px">Next you'll pick a username. Friends only ever see that name, never your email.</p>
+          <p class="fine" style="margin-top:8px">Next you'll pick a username, then create a group or join one with a code a friend shared. Group-mates only ever see your username, never your email.</p>
         </form>
         <p class="saved" id="loginMsg" role="status" style="margin-top:12px"></p>
       </div>

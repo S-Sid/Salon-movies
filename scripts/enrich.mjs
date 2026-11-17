@@ -36,7 +36,7 @@ const omdb = async imdbId => {
   return res.ok ? res.json() : null;
 };
 
-const { data: rows, error } = await sb.from("added_films").select("id,user_id,data");
+const { data: rows, error } = await sb.from("added_films").select("id,group_id,user_id,data");
 if (error) { console.error(error.message); process.exit(1); }
 const todo = rows.filter(r => r.data && r.data.pending).slice(0, limit);
 console.log(`${todo.length} film(s) awaiting details. ${apply ? "APPLYING changes." : "Dry run (add --apply to save)."}\n`);
@@ -51,13 +51,13 @@ for (const row of todo) {
     const full = await tmdb(`/movie/${hit.id}`, { append_to_response: "credits,release_dates,watch/providers,external_ids" });
     if (full.adult || hit.adult) {
       console.log(`X  "${f.title}": flagged adult by TMDB, ${apply ? "removed" : "would be removed"}`);
-      if (apply) await sb.from("added_films").delete().eq("id", row.id);
+      if (apply) await sb.from("added_films").delete().eq("group_id", row.group_id).eq("id", row.id);
       continue;
     }
     const film = buildFilm(f, full, await omdb(full.external_ids && full.external_ids.imdb_id));
     console.log(`OK "${f.title}" -> "${film.title}" (${film.year}), ${film.runtimeMin || "?"} min, ${film.genres.join("/") || "no genres"}, audience: ${film.audience || "unknown"}, streams: ${film.where.length}`);
     if (apply) {
-      const { error: e } = await sb.from("added_films").update({ data: film }).eq("id", row.id);
+      const { error: e } = await sb.from("added_films").update({ data: film }).eq("group_id", row.group_id).eq("id", row.id);
       if (e) console.log("   save failed:", e.message);
     }
   } catch (e) { console.log(`!  "${f.title}": ${e.message}`); }

@@ -1,0 +1,135 @@
+/* Two black cats who wander along the bottom of the Salon.
+   - "Tom" (green eyes, red collar, fedora) and "Lady" (amber eyes, lashes, pearls, cigarette holder).
+   - Picking a mood sends the matching cat to perform it; the other keeps wandering.
+   - Pure SVG + CSS, no images. Respects reduced motion. Can be switched off. */
+
+const REDUCE = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* mood -> who performs it, and what they do */
+const MOOD_POSE = {
+  "Dark":         { who: "tom",  pose: "smoke" },
+  "Intense":      { who: "tom",  pose: "smoke" },
+  "Tense":        { who: "tom",  pose: "smoke" },
+  "Sharp":        { who: "tom",  pose: "strut" },
+  "Epic":         { who: "tom",  pose: "strut" },
+  "Mind-bending": { who: "tom",  pose: "strut" },
+  "Romantic":     { who: "lady", pose: "glass" },
+  "Heartfelt":    { who: "lady", pose: "glass" },
+  "Opulent":      { who: "lady", pose: "smoke" },
+  "Stylish":      { who: "lady", pose: "smoke" },
+  "Reflective":   { who: "lady", pose: "loaf" },
+  "Melancholic":  { who: "lady", pose: "loaf" },
+  "Witty":        { who: "tom",  pose: "play" },
+  "Light":        { who: "lady", pose: "play" },
+  "Uplifting":    { who: "lady", pose: "play" },
+};
+const IDLE_POSES = ["stand", "loaf", "play", "stand", "glass"];
+
+function svg(kind) {
+  const lady = kind === "lady";
+  const eye = lady ? "#e8a43a" : "#b7c46a";
+  return `<svg viewBox="0 0 230 140" aria-hidden="true" focusable="false">
+  <g class="rig">
+    <g class="tail"><path d="M52 82 C16 80 8 44 32 26" fill="none" stroke="#120e10" stroke-width="9" stroke-linecap="round"/></g>
+    <g class="leg far b"><rect x="60" y="94" width="10" height="36" rx="5" fill="#2b2328"/></g>
+    <g class="leg far f"><rect x="128" y="94" width="10" height="36" rx="5" fill="#2b2328"/></g>
+    <g class="torso"><ellipse cx="100" cy="84" rx="54" ry="26" fill="#120e10"/><path d="M60 66 C90 58 120 58 146 66" fill="none" stroke="#2f262b" stroke-width="2" stroke-linecap="round"/></g>
+    <g class="leg near b"><rect x="76" y="94" width="11" height="36" rx="5.5" fill="#120e10"/></g>
+    <g class="leg near f"><rect x="141" y="94" width="11" height="36" rx="5.5" fill="#120e10"/></g>
+    <g class="head">
+      <path d="M145 52 L149 26 L164 44 Z M164 44 L176 26 L182 52 Z" fill="#120e10"/>
+      <path d="M150 38 L152 31 L158 40 Z M170 38 L176 31 L178 40 Z" fill="${lady ? "#7a2a35" : "#3a2a30"}"/>
+      <circle cx="162" cy="62" r="21" fill="#120e10"/>
+      <g class="eyes">
+        <path d="M153 60 Q159 53 167 60 Q159 66 153 60 Z" fill="${eye}"/><ellipse cx="160" cy="60" rx="1.6" ry="4.6" fill="#120e10"/>
+        <path d="M170 61 Q176 54 183 61 Q176 67 170 61 Z" fill="${eye}"/><ellipse cx="177" cy="61" rx="1.6" ry="4.6" fill="#120e10"/>
+        ${lady ? `<path d="M152 57 l-5 -3 M153 55 l-3 -5 M184 58 l5 -3 M182 56 l3 -5" stroke="#120e10" stroke-width="1.6" stroke-linecap="round"/>` : ""}
+      </g>
+      <path d="M177 68 l4 2 l-4 2 Z" fill="${lady ? "#c98a8a" : "#8a6a6a"}"/>
+      <path d="M180 70 l22 -3 M180 72 l22 3 M179 71 l20 0" stroke="#d9cdb4" stroke-width=".9" opacity=".7"/>
+      <g class="acc shades"><rect x="150" y="54" width="18" height="11" rx="4" fill="#0a0809" stroke="#c9a55e" stroke-width="1.2"/><rect x="170" y="55" width="18" height="11" rx="4" fill="#0a0809" stroke="#c9a55e" stroke-width="1.2"/><path d="M168 59 h2" stroke="#c9a55e" stroke-width="1.4"/></g>
+      ${lady ? "" : `<g class="acc hat"><ellipse cx="164" cy="43" rx="28" ry="5.5" fill="#2a1d22" stroke="#c9a55e" stroke-width="1"/><path d="M148 43 C148 22 180 22 180 43 Z" fill="#2a1d22"/><path d="M149 40 h30" stroke="#9b2335" stroke-width="4"/></g>`}
+    </g>
+    ${lady
+      ? `<g class="neck"><path d="M142 84 Q150 94 162 90" fill="none" stroke="#e9e2d2" stroke-width="0"/>${[0,1,2,3,4,5,6].map(i => `<circle cx="${143 + i * 4.2}" cy="${82 + Math.sin(i / 6 * Math.PI) * 9}" r="2.6" fill="#f1ead8" stroke="#bdb39a" stroke-width=".5"/>`).join("")}</g>`
+      : `<g class="neck"><path d="M142 82 Q152 92 166 86" fill="none" stroke="#9b2335" stroke-width="4" stroke-linecap="round"/><circle cx="154" cy="90" r="2.6" fill="#c9a55e"/></g>`}
+    <g class="acc cig">
+      <path d="${lady ? "M181 71 L212 58" : "M181 71 L200 63"}" stroke="#efe6d0" stroke-width="2.4" stroke-linecap="round"/>
+      <circle cx="${lady ? 212 : 200}" cy="${lady ? 58 : 63}" r="2" fill="#ff7a2a"/>
+      <g class="smoke" transform="translate(${lady ? 212 : 200} ${lady ? 56 : 61})"><circle class="p1" r="3" fill="#d9d3c8"/><circle class="p2" r="3.5" fill="#d9d3c8"/><circle class="p3" r="4" fill="#d9d3c8"/></g>
+    </g>
+  </g>
+  <g class="acc glass"><path d="M196 104 h20 q-1 10 -10 10 q-9 0 -10 -10 Z" fill="#e8c46a" fill-opacity=".85" stroke="#efe6d0" stroke-width="1.3"/><path d="M206 114 v14 M198 129 h16" stroke="#efe6d0" stroke-width="1.6" stroke-linecap="round"/></g>
+  <g class="acc ball"><circle cx="206" cy="124" r="7" fill="#9b2335"/><path d="M200 121 q6 3 12 0" stroke="#efe6d0" stroke-width="1.2" fill="none"/></g>
+  <g class="acc zzz"><text x="150" y="24" font-family="Georgia,serif" font-style="italic" font-size="14" fill="#c9a55e">z</text><text x="162" y="14" font-family="Georgia,serif" font-style="italic" font-size="11" fill="#c9a55e">z</text></g>
+</svg>`;
+}
+
+function makeCat(kind, startX) {
+  const el = document.createElement("div");
+  el.className = "salon-cat";
+  el.dataset.cat = kind;
+  el.innerHTML = `<div class="flip">${svg(kind)}</div>`;
+  document.body.appendChild(el);
+  const cat = { kind, el, x: startX, pose: "stand", timer: null, locked: null, allowSmoke: true };
+  place(cat, startX, 0);
+  setPose(cat, "stand");
+  return cat;
+}
+
+const width = () => Math.min(150, Math.max(104, innerWidth * 0.14));
+const place = (c, x, secs) => { c.el.style.transitionDuration = secs + "s"; c.el.style.transform = `translateX(${Math.round(x)}px)`; c.x = x; };
+function setPose(c, pose) {
+  if (pose === "smoke" && !c.allowSmoke) pose = "strut";   // smoke-free fallback: shades and a swagger
+  c.pose = pose; c.el.dataset.pose = pose;
+}
+function face(c, toX) { c.el.classList.toggle("left", toX < c.x - 1); }
+
+function walkTo(c, x, done) {
+  const dist = Math.abs(x - c.x), secs = Math.max(0.4, dist / (c.pose === "strut" ? 80 : 60));
+  face(c, x); c.el.dataset.pose = "walk"; place(c, x, secs);
+  clearTimeout(c.timer);
+  c.timer = setTimeout(done, secs * 1000 + 40);
+}
+const rand = (a, b) => a + Math.random() * (b - a);
+const pickX = () => rand(8, Math.max(40, innerWidth - width() - 8));
+
+function wander(c) {
+  clearTimeout(c.timer);
+  if (REDUCE || document.hidden) return;
+  if (c.locked) return perform(c);
+  walkTo(c, pickX(), () => {
+    setPose(c, IDLE_POSES[Math.floor(Math.random() * IDLE_POSES.length)]);
+    c.timer = setTimeout(() => wander(c), rand(4000, 9000));
+  });
+}
+/* hold the mood pose until the mood changes (strut keeps pacing) */
+function perform(c) {
+  clearTimeout(c.timer);
+  if (REDUCE) { setPose(c, c.locked); return; }
+  const pose = c.locked;
+  walkTo(c, pickX(), () => {
+    setPose(c, pose);
+    if (pose === "strut" || c.pose === "strut") c.timer = setTimeout(() => perform(c), rand(3500, 6000));
+  });
+}
+
+export function initCat() {
+  let enabled = true; try { enabled = localStorage.getItem("salonCat") !== "0"; } catch (e) {}
+  let cats = [];
+  const make = () => { cats = [makeCat("tom", rand(10, 200)), makeCat("lady", rand(260, 500))]; cats.forEach(wander); };
+  const clear = () => { cats.forEach(c => { clearTimeout(c.timer); c.el.remove(); }); cats = []; };
+  if (enabled) make();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) cats.forEach(wander); else cats.forEach(c => clearTimeout(c.timer)); });
+  return {
+    get enabled() { return enabled; },
+    setEnabled(on) { enabled = on; try { localStorage.setItem("salonCat", on ? "1" : "0"); } catch (e) {} clear(); if (on) make(); },
+    /* mood: a mood name or null. allowSmoke false when "Family-friendly" is picked. */
+    setMood(mood, allowSmoke = true) {
+      cats.forEach(c => { c.allowSmoke = allowSmoke; c.locked = null; });
+      const m = MOOD_POSE[mood];
+      if (m) { const c = cats.find(x => x.kind === m.who); if (c) { c.locked = m.pose; perform(c); } }
+      cats.forEach(c => { if (!c.locked && c.pose !== "walk") wander(c); });
+    },
+  };
+}

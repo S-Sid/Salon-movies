@@ -119,15 +119,20 @@ header .spacer{flex:1}
 /* ---------- Mood bar ---------- */
 .evening{position:relative;z-index:5;margin:-70px clamp(16px,4vw,56px) 10px;padding:16px 20px;
   border:1px solid var(--line);background:rgba(28,15,22,.94);
-  display:grid;gap:10px}
+  display:grid;gap:8px}
 .evening h2{font-family:var(--script);font-weight:400;font-size:28px;color:var(--gilt)}
-.chiprow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.chiprow .lbl{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);min-width:90px}
-.chip{white-space:nowrap;border:1px solid rgba(243,233,212,.25);background:transparent;border-radius:999px;padding:4px 14px;cursor:pointer;font-size:16px;transition:all .2s ease}
+/* One tidy line per filter group; chips scroll sideways instead of wrapping into a wall. */
+.chiprow{display:flex;flex-wrap:nowrap;gap:6px;align-items:center;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px 0;
+  -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+.chiprow::-webkit-scrollbar{display:none}
+.chiprow>*{flex:none}
+.chiprow .lbl{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);width:84px}
+#comboChips{display:none}   /* pairings are still on Home as rows; pick two genres to pair */
+.chip{white-space:nowrap;border:1px solid rgba(243,233,212,.22);background:transparent;border-radius:999px;padding:2px 12px;cursor:pointer;font-size:15px;transition:all .2s ease}
 .chip:hover{border-color:var(--gilt)}
 .chip[aria-pressed="true"]{background:var(--wisteria);color:#1d1226;border-color:var(--wisteria)}
 .chiprow .lbl small{display:block;font-size:11px;letter-spacing:.06em;text-transform:none;font-style:italic;color:rgba(171,156,142,.75)}
-.chip .n{font-size:13px;opacity:.65;margin-left:4px;font-variant-numeric:tabular-nums}
+.chip .n{font-size:12px;opacity:.45;margin-left:4px;font-variant-numeric:tabular-nums}
 .chip.combo{border-style:dashed}
 .chip.combo .plus{color:var(--gilt);margin:0 3px}
 .chip.combo[aria-pressed="true"] .plus{color:#1d1226}
@@ -200,8 +205,8 @@ main{padding-bottom:60px}
   .evening h2{font-size:22px}
   .filt-toggle{display:inline}
   .evening:not(.open) .chiprow:not(#langChips){display:none}
-  .chiprow .lbl{min-width:0;width:100%}
-  .chip{font-size:15px;padding:3px 12px}
+  .chiprow .lbl{width:auto;margin-right:2px}
+  .chip{font-size:14px;padding:2px 11px}
 }
 .empty{padding:40px clamp(16px,4vw,56px);color:var(--muted);font-style:italic}
 .status-note{margin:8px clamp(16px,4vw,56px);padding:10px 14px;border-left:3px solid var(--gilt);background:rgba(201,165,94,.08);font-size:16px}
@@ -250,7 +255,7 @@ footer button{background:none;border:0;cursor:pointer;color:var(--gilt);text-dec
   nav.tabs{display:none}
   .hero{padding-bottom:110px}
   .hero-art .frame{display:none}
-  .chiprow .lbl{min-width:100%}
+  .chiprow .lbl{width:auto}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-delay:0s!important;transition-duration:.001ms!important;transition-delay:0s!important}
@@ -290,3 +295,54 @@ header .chip{padding:3px 14px;font-size:15px}
   #addBtn{padding:6px 12px;font-size:14px;white-space:nowrap}
   #unseenBtn{white-space:nowrap}
 }
+
+/* ---------- The Salon cats ---------- */
+.salon-cat{position:fixed;left:0;bottom:2px;width:clamp(104px,14vw,150px);z-index:30;pointer-events:none;
+  transition-property:transform;transition-timing-function:linear;will-change:transform}
+.salon-cat .flip{transform-origin:50% 100%;transition:transform .25s ease}
+.salon-cat.left .flip{transform:scaleX(-1)}
+.salon-cat svg{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 0 1.2px rgba(201,165,94,.8)) drop-shadow(0 4px 6px rgba(0,0,0,.6))}
+.salon-cat .tail{transform-box:view-box;transform-origin:52px 82px;animation:tailsway 2.8s ease-in-out infinite}
+.salon-cat .leg{transform-box:fill-box;transform-origin:50% 8%}
+.salon-cat .eyes{transform-box:fill-box;transform-origin:50% 50%;animation:blink 5s infinite}
+.salon-cat .acc{display:none}
+.salon-cat .rig,.salon-cat .torso,.salon-cat .head,.salon-cat .neck{transition:transform .5s ease}
+.salon-cat .smoke circle{opacity:0}
+@keyframes tailsway{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(9deg)}}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+@keyframes swingA{0%,100%{transform:rotate(26deg)}50%{transform:rotate(-26deg)}}
+@keyframes swingB{0%,100%{transform:rotate(-26deg)}50%{transform:rotate(26deg)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes puff{0%{opacity:0;transform:translate(0,0) scale(.5)}20%{opacity:.7}100%{opacity:0;transform:translate(10px,-38px) scale(2.2)}}
+@keyframes bounce{0%,100%{transform:translate(0,0)}50%{transform:translate(-8px,-34px)}}
+@keyframes zz{0%{opacity:0;transform:translateY(6px)}50%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
+@keyframes paw{0%,100%{transform:rotate(0)}50%{transform:rotate(-55deg)}}
+
+/* walking */
+.salon-cat[data-pose="walk"] .rig{animation:bob .5s ease-in-out infinite}
+.salon-cat[data-pose="walk"] .leg.near.f,.salon-cat[data-pose="walk"] .leg.far.b{animation:swingA .6s ease-in-out infinite}
+.salon-cat[data-pose="walk"] .leg.near.b,.salon-cat[data-pose="walk"] .leg.far.f{animation:swingB .6s ease-in-out infinite}
+/* loaf (nap / reflect / sip): legs tucked, body low */
+.salon-cat[data-pose="loaf"] .leg,.salon-cat[data-pose="glass"] .leg{display:none}
+.salon-cat[data-pose="loaf"] .torso,.salon-cat[data-pose="glass"] .torso{transform:translateY(16px) scaleY(.85);transform-origin:100px 100px}
+.salon-cat[data-pose="loaf"] .head,.salon-cat[data-pose="glass"] .head,
+.salon-cat[data-pose="loaf"] .neck,.salon-cat[data-pose="glass"] .neck{transform:translateY(18px)}
+.salon-cat[data-pose="loaf"] .tail,.salon-cat[data-pose="glass"] .tail{animation:none;transform:translateY(18px)}
+.salon-cat[data-pose="loaf"] .zzz{display:block}
+.salon-cat[data-pose="loaf"] .zzz text{animation:zz 2.4s ease-in-out infinite}
+.salon-cat[data-pose="loaf"] .zzz text+text{animation-delay:.8s}
+.salon-cat[data-pose="glass"] .glass{display:block}
+/* smoking: fedora (Tom), holder, smoke curls */
+.salon-cat[data-pose="smoke"] .cig,.salon-cat[data-pose="smoke"] .hat{display:block}
+.salon-cat[data-pose="smoke"] .smoke circle{animation:puff 3s ease-out infinite}
+.salon-cat[data-pose="smoke"] .smoke .p2{animation-delay:1s}
+.salon-cat[data-pose="smoke"] .smoke .p3{animation-delay:2s}
+.salon-cat[data-pose="smoke"] .shades{display:none}
+/* strutting: shades on */
+.salon-cat[data-pose="strut"] .shades,.salon-cat[data-pose="strut"] .hat{display:block}
+.salon-cat[data-pose="strut"] .rig{animation:bob .8s ease-in-out infinite}
+/* playing: ball bounces, paw bats at it */
+.salon-cat[data-pose="play"] .ball{display:block;animation:bounce .9s ease-in-out infinite}
+.salon-cat[data-pose="play"] .leg.near.f{animation:paw .9s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.salon-cat *{animation:none!important}.salon-cat{transition:none!important}}
+@media print{.salon-cat{display:none}}

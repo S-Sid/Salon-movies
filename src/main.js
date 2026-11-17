@@ -3,10 +3,16 @@ import { $, esc, reduce, fmtTime, pal, safeCol } from "./util.js";
 import { MOODS, GENRES, PAIRINGS, GENRE_ROW, TIMES, BEST_TIMES, FEELINGS, AUDIENCES } from "./vocab.js";
 import { sceneCache, drawScene } from "./scenes.js";
 import { store as realStore } from "./store.js";
+import { initCat } from "./cat.js";
 
 (() => {
   "use strict";
   let store = realStore;   // dev-only mock swaps in below (never in the production build)
+  /* ---------- The cats: they react to the mood chip you pick ---------- */
+  const cats = initCat();
+  const catBtn = $("#catBtn"), syncCatBtn = () => { catBtn.textContent = cats.enabled ? "Cats: on" : "Cats: off"; };
+  syncCatBtn();
+  catBtn.addEventListener("click", () => { cats.setEnabled(!cats.enabled); syncCatBtn(); cats.setMood(F.mood, F.aud !== "fam"); });
   /* ---------- Opening: wax seal + curtains ---------- */
   const intro = $("#intro");
   function endIntro(){ if(!intro.classList.contains("done")) intro.classList.add("done"); startHero(); }
@@ -128,7 +134,7 @@ import { store as realStore } from "./store.js";
     $("#audChips").hidden = !haveAud.size;
     $("#clearAll").hidden = !(F.lang || F.svc || F.genres.length || F.mood || F.time || F.aud);
   }
-  $("#clearAll").addEventListener("click", () => { F.lang=null; F.svc=null; F.genres=[]; F.mood=null; F.time=null; F.aud=null; renderAll(); });
+  $("#clearAll").addEventListener("click", () => { F.lang=null; F.svc=null; F.genres=[]; F.mood=null; F.time=null; F.aud=null; renderAll(); cats.setMood(null); });
 
   document.addEventListener("click", e => {
     const t = e.target.closest("[data-lang],[data-svc],[data-genre],[data-combo],[data-mood],[data-time],[data-aud],[data-tab]");
@@ -142,6 +148,7 @@ import { store as realStore } from "./store.js";
     else if (t.dataset.aud){ F.aud = F.aud===t.dataset.aud ? null : t.dataset.aud; }
     else if (t.dataset.tab){ tab=t.dataset.tab; document.querySelectorAll("[data-tab]").forEach(b=>b.setAttribute("aria-pressed", b===t)); window.scrollTo({top: $("#rows").offsetTop - 90, behavior: reduce?"auto":"smooth"}); }
     renderAll();
+    cats.setMood(F.mood, F.aud !== "fam");
     if (!t.dataset.tab && (F.lang||F.svc||F.genres.length||F.mood||F.time||F.aud)) { const r=$("[data-row='picked']") || $(".empty"); if (r && r.getBoundingClientRect().top > innerHeight) r.scrollIntoView({behavior: reduce?"auto":"smooth", block:"center"}); }
   });
 

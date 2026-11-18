@@ -23,7 +23,7 @@ const MOOD_POSE = {
   "Light":        { who: "lady", pose: "play" },
   "Uplifting":    { who: "lady", pose: "play" },
 };
-const IDLE_POSES = ["stand", "loaf", "play", "stand", "glass"];
+const IDLE_POSES = ["stand", "loaf", "play", "stand", "glass", "phone", "phone"];   // "phone" is only for the lady
 
 function svg(kind) {
   const lady = kind === "lady";
@@ -58,6 +58,13 @@ function svg(kind) {
     <g class="acc tailspikes" fill="#120e10"><path d="M26 56 l-11 -2 l10 -8 Z M18 42 l-12 -4 l11 -8 Z M28 30 l-8 -11 l12 4 Z M12 66 l-11 1 l9 -8 Z M40 24 l-4 -11 l10 5 Z"/></g>
     <g class="acc mouth"><ellipse cx="183" cy="76" rx="7" ry="6" fill="#6e130e"/><path d="M178 72 l2 4 l2 -4 M185 72 l2 4 l2 -4" stroke="#f2e4c4" stroke-width="1.4" fill="none" stroke-linejoin="round"/></g>
     <g class="acc shock"><path d="M146 30 l-8 -8 M156 22 l-2 -11 M170 20 l3 -11 M182 28 l10 -7" stroke="#f2e4c4" stroke-width="2.2" stroke-linecap="round"/></g>
+${lady ? `<g class="acc phone"><g class="pbob"><g transform="translate(194 72) rotate(-12)">
+      <rect x="-11.5" y="0" width="23" height="43" rx="5.5" fill="#f2702a" stroke="#b9500f" stroke-width="1.2"/>
+      <path d="M-9 2 h18 a3 3 0 0 1 3 3 v1 h-24 v-1 a3 3 0 0 1 3 -3 z" fill="#ff9a55" opacity=".55"/>
+      <rect x="-9.5" y="3" width="19" height="11" rx="3.4" fill="#d95f12" stroke="#ffb27a" stroke-width=".6"/>
+      <circle cx="-4.8" cy="8.5" r="2.7" fill="#161618" stroke="#7a7a80" stroke-width=".7"/><circle cx="1.2" cy="8.5" r="2.7" fill="#161618" stroke="#7a7a80" stroke-width=".7"/><circle cx="7" cy="6" r="1.3" fill="#fff0c0"/><circle cx="7" cy="10.6" r="1.1" fill="#161618"/>
+      <ellipse cx="-8" cy="39" rx="5" ry="4.2" fill="#120e10"/><ellipse cx="8" cy="39" rx="5" ry="4.2" fill="#120e10"/>
+    </g></g></g>` : ""}
     <g class="acc cig">
       <path d="${lady ? "M181 71 L212 58" : "M181 71 L200 63"}" stroke="#efe6d0" stroke-width="2.4" stroke-linecap="round"/>
       <circle cx="${lady ? 212 : 200}" cy="${lady ? 58 : 63}" r="2" fill="#ff7a2a"/>
@@ -115,15 +122,43 @@ function makeCat(kind, startX) {
     lastTap = now; clearTimeout(tapTimer);
     tapTimer = setTimeout(() => { lastTap = 0; bubble(el, pick(["Meow!", "Mrrow?", "Miaow~", "Prrp!"])); sound("meow"); }, 260);
   });
-  const cat = { kind, el, x: startX, pose: "stand", timer: null, locked: null, allowSmoke: true };
+  const cat = { kind, el, x: startX, pose: "stand", timer: null, locked: null, allowSmoke: true, ledge: { floor: true } };
   place(cat, startX, 0);
+  setTop(cat, "0s");
   setPose(cat, "stand");
   return cat;
 }
 
 const width = () => Math.min(150, Math.max(104, innerWidth * 0.14));
-const place = (c, x, secs) => { c.el.style.transitionDuration = secs + "s"; c.el.style.transform = `translateX(${Math.round(x)}px)`; c.x = x; };
+const place = (c, x, secs) => { c.el.style.setProperty("--secs", secs + "s"); c.el.style.transform = `translateX(${Math.round(x)}px)`; c.x = x; };
+
+/* ---- Ledges: the floor (bottom of the screen) or the top edge of a film row on screen ---- */
+const catH = () => width() * 140 / 230;
+function visibleLedges() {
+  const out = [{ floor: true }];
+  document.querySelectorAll(".row .track").forEach(t => {
+    const art = t.querySelector(".card .art"); if (!art) return;
+    const r = art.getBoundingClientRect();
+    if (r.top > 100 && r.top < innerHeight - 40) out.push({ track: t });
+  });
+  return out;
+}
+function ledgeY(c) {                       // page-coordinate top, so the cat's feet rest on the ledge
+  const L = c.ledge;
+  if (L && L.track && L.track.isConnected) { const art = L.track.querySelector(".card .art"); if (art) return art.getBoundingClientRect().top + scrollY - catH() + 5; }
+  c.ledge = { floor: true };
+  return scrollY + innerHeight - catH() - 2;
+}
+function setTop(c, dur) { c.el.style.setProperty("--tdur", dur); c.el.style.top = Math.round(ledgeY(c)) + "px"; }
+function pickLedge(c) { const all = visibleLedges().filter(L => !(L.track && c.ledge && L.track === c.ledge.track) && !(L.floor && c.ledge && c.ledge.floor)); return all.length ? pick(all) : null; }
+/* hop up or down to another ledge, then carry on */
+function moveLedge(c, L, done) {
+  clearTimeout(c.timer); c.ledge = L; c.el.dataset.pose = "stand";
+  c.el.classList.add("leap"); setTop(c, ".65s");
+  c.timer = setTimeout(() => { c.el.classList.remove("leap"); done(); }, 700);
+}
 function setPose(c, pose) {
+  if (pose === "phone" && c.kind !== "lady") pose = "stand";
   if (pose === "smoke" && !c.allowSmoke) pose = "strut";   // smoke-free fallback: shades and a swagger
   c.pose = pose; c.el.dataset.pose = pose;
 }
@@ -142,20 +177,25 @@ function wander(c) {
   clearTimeout(c.timer);
   if (REDUCE || document.hidden) return;
   if (c.locked) return perform(c);
-  walkTo(c, pickX(), () => {
+  const next = Math.random() < 0.55 ? pickLedge(c) : null;
+  const go = () => walkTo(c, pickX(), () => {
     setPose(c, IDLE_POSES[Math.floor(Math.random() * IDLE_POSES.length)]);
     c.timer = setTimeout(() => wander(c), rand(4000, 9000));
   });
+  next ? moveLedge(c, next, go) : go();
 }
 /* hold the mood pose until the mood changes (strut keeps pacing) */
 function perform(c) {
   clearTimeout(c.timer);
   if (REDUCE) { setPose(c, c.locked); return; }
   const pose = c.locked;
-  walkTo(c, pickX(), () => {
+  const next = pickLedge(c);
+  const go = () => walkTo(c, pickX(), () => {
     setPose(c, pose);
     if (pose === "strut" || c.pose === "strut") c.timer = setTimeout(() => perform(c), rand(3500, 6000));
   });
+  next && !c.performing ? moveLedge(c, next, go) : go();
+  c.performing = pose === "strut";      // a strutting cat keeps pacing on its ledge instead of hopping rows
 }
 
 export function initCat() {
@@ -164,13 +204,24 @@ export function initCat() {
   const make = () => { cats = [makeCat("tom", rand(10, 200)), makeCat("lady", rand(260, 500))]; cats.forEach(wander); };
   const clear = () => { cats.forEach(c => { clearTimeout(c.timer); c.el.remove(); }); cats = []; };
   if (enabled) make();
+  /* keep the cats attached: follow the screen floor while scrolling; re-anchor to rows; rescue strays */
+  addEventListener("scroll", () => { cats.forEach(c => { if (c.ledge.floor) setTop(c, "0s"); }); }, { passive: true });
+  setInterval(() => {
+    if (document.hidden) return;
+    cats.forEach(c => {
+      const r = c.el.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > innerHeight) { const all = visibleLedges(); c.ledge = pick(all); setTop(c, "0s"); return; }
+      if (!c.el.classList.contains("leap")) setTop(c, ".4s");
+    });
+  }, 700);
+  addEventListener("resize", () => cats.forEach(c => setTop(c, "0s")));
   document.addEventListener("visibilitychange", () => { if (!document.hidden) cats.forEach(wander); else cats.forEach(c => clearTimeout(c.timer)); });
   return {
     get enabled() { return enabled; },
     setEnabled(on) { enabled = on; try { localStorage.setItem("salonCat", on ? "1" : "0"); } catch (e) {} clear(); if (on) make(); },
     /* mood: a mood name or null. allowSmoke false when "Family-friendly" is picked. */
     setMood(mood, allowSmoke = true) {
-      cats.forEach(c => { c.allowSmoke = allowSmoke; c.locked = null; });
+      cats.forEach(c => { c.allowSmoke = allowSmoke; c.locked = null; c.performing = false; });
       const m = MOOD_POSE[mood];
       if (m) { const c = cats.find(x => x.kind === m.who); if (c) { c.locked = m.pose; perform(c); } }
       cats.forEach(c => { if (!c.locked && c.pose !== "walk") wander(c); });

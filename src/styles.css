@@ -465,3 +465,25 @@ header{padding-top:calc(env(safe-area-inset-top, 0px) + 14px)}
   .evening h2{font-size:26px}
 }
 @media (max-width:640px){.xs-hide{display:none}.brand{margin-right:0}header .spacer{display:none}#groupBtn{flex:1 1 auto;min-width:0;max-width:none}}
+
+/* Tap a cat: speech bubble + meow. Double tap: it gets startled and jumps. */
+.salon-cat .hit{pointer-events:all;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.salon-cat .bubble{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);white-space:nowrap;pointer-events:none;
+  font-family:var(--label);font-size:22px;letter-spacing:.08em;text-transform:uppercase;color:#1f0d0b;background:var(--ivory);
+  border:2px solid #1f0d0b;padding:0 10px;box-shadow:3px 3px 0 var(--claret);animation:bubblepop 1.5s ease forwards}
+.salon-cat .bubble::after{content:"";position:absolute;left:50%;top:100%;margin-left:-6px;border:6px solid transparent;border-top-color:#1f0d0b}
+@keyframes bubblepop{0%{opacity:0;transform:translate(-50%,8px) scale(.6)}12%{opacity:1;transform:translate(-50%,-4px) scale(1.08)}22%{transform:translate(-50%,-2px) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-14px)}}
+.salon-cat.scared{animation:scarehop 1.2s cubic-bezier(.3,.7,.4,1)}
+@keyframes scarehop{0%{translate:0 0}18%{translate:0 -125px}42%{translate:0 0}56%{translate:0 -42px}72%{translate:0 0}84%{translate:0 -12px}100%{translate:0 0}}
+@keyframes shiver{0%{transform:translateX(-1.6px)}50%{transform:translateX(1.6px)}100%{transform:translateX(-1.6px)}}
+.salon-cat.scared .spikes,.salon-cat.scared .tailspikes,.salon-cat.scared .mouth,.salon-cat.scared .shock{display:block}
+.salon-cat.scared .tail{animation:none}
+.salon-cat.scared .tail path{stroke-width:21px}
+.salon-cat.scared .eyes{animation:none;transform:scale(1.5)}
+.salon-cat.scared .torso{transform:translateY(-5px) scaleY(1.14);transform-origin:100px 84px}
+.salon-cat.scared .leg{animation:none!important}
+.salon-cat.scared[data-pose] .rig{animation:shiver .09s linear infinite}
+
+#addBtn,#unseenBtn,#groupBtn{white-space:nowrap;flex:none}
+#groupBtn{flex:0 1 auto;min-width:0;max-width:34vw;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:640px){#groupBtn{flex:1 1 auto;max-width:none}}

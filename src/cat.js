@@ -29,6 +29,7 @@ function svg(kind) {
   const lady = kind === "lady";
   const eye = lady ? "#e8a43a" : "#b7c46a";
   return `<svg viewBox="0 0 230 140" aria-hidden="true" focusable="false">
+  <rect class="hit" x="30" y="18" width="185" height="118" fill="transparent"/>
   <g class="rig">
     <g class="tail"><path d="M52 82 C16 80 8 44 32 26" fill="none" stroke="#120e10" stroke-width="9" stroke-linecap="round"/></g>
     <g class="leg far b"><rect x="60" y="94" width="10" height="36" rx="5" fill="#2b2328"/></g>
@@ -53,6 +54,10 @@ function svg(kind) {
     ${lady
       ? `<g class="neck"><path d="M142 84 Q150 94 162 90" fill="none" stroke="#e9e2d2" stroke-width="0"/>${[0,1,2,3,4,5,6].map(i => `<circle cx="${143 + i * 4.2}" cy="${82 + Math.sin(i / 6 * Math.PI) * 9}" r="2.6" fill="#f1ead8" stroke="#bdb39a" stroke-width=".5"/>`).join("")}</g>`
       : `<g class="neck"><path d="M142 82 Q152 92 166 86" fill="none" stroke="#9b2335" stroke-width="4" stroke-linecap="round"/><circle cx="154" cy="90" r="2.6" fill="#c9a55e"/></g>`}
+    <g class="acc spikes"><path d="M62 64 l6 -17 l6 15 l7 -19 l6 18 l8 -19 l6 18 l8 -18 l6 17 l8 -16 l5 15 Z" fill="#120e10"/></g>
+    <g class="acc tailspikes" fill="#120e10"><path d="M26 56 l-11 -2 l10 -8 Z M18 42 l-12 -4 l11 -8 Z M28 30 l-8 -11 l12 4 Z M12 66 l-11 1 l9 -8 Z M40 24 l-4 -11 l10 5 Z"/></g>
+    <g class="acc mouth"><ellipse cx="183" cy="76" rx="7" ry="6" fill="#6e130e"/><path d="M178 72 l2 4 l2 -4 M185 72 l2 4 l2 -4" stroke="#f2e4c4" stroke-width="1.4" fill="none" stroke-linejoin="round"/></g>
+    <g class="acc shock"><path d="M146 30 l-8 -8 M156 22 l-2 -11 M170 20 l3 -11 M182 28 l10 -7" stroke="#f2e4c4" stroke-width="2.2" stroke-linecap="round"/></g>
     <g class="acc cig">
       <path d="${lady ? "M181 71 L212 58" : "M181 71 L200 63"}" stroke="#efe6d0" stroke-width="2.4" stroke-linecap="round"/>
       <circle cx="${lady ? 212 : 200}" cy="${lady ? 58 : 63}" r="2" fill="#ff7a2a"/>
@@ -65,12 +70,51 @@ function svg(kind) {
 </svg>`;
 }
 
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+function bubble(el, text) {
+  el.querySelectorAll(".bubble").forEach(b => b.remove());
+  const b = document.createElement("span"); b.className = "bubble"; b.textContent = text;
+  el.appendChild(b); setTimeout(() => b.remove(), 1500);
+}
+/* A tiny synthesised meow (no audio files). Quiet, and only ever after a tap. */
+let actx = null;
+function sound(kind) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+    const t = actx.currentTime, scare = kind === "scare", dur = scare ? 0.38 : 0.62;
+    const osc = actx.createOscillator(), vib = actx.createOscillator(), vg = actx.createGain();
+    const filt = actx.createBiquadFilter(), g = actx.createGain();
+    osc.type = "sawtooth";
+    const f0 = scare ? 780 : 480, f1 = scare ? 1500 : 880;
+    osc.frequency.setValueAtTime(f0, t); osc.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.4); osc.frequency.exponentialRampToValueAtTime(scare ? 900 : 560, t + dur);
+    vib.frequency.value = scare ? 38 : 7; vg.gain.value = scare ? 40 : 14; vib.connect(vg); vg.connect(osc.frequency);
+    filt.type = "bandpass"; filt.Q.value = 3.5; filt.frequency.setValueAtTime(900, t); filt.frequency.exponentialRampToValueAtTime(scare ? 2600 : 1900, t + dur * 0.45); filt.frequency.exponentialRampToValueAtTime(900, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(scare ? 0.16 : 0.12, t + 0.06); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(filt); filt.connect(g); g.connect(actx.destination);
+    osc.start(t); vib.start(t); osc.stop(t + dur + 0.05); vib.stop(t + dur + 0.05);
+  } catch (e) {}
+}
+
 function makeCat(kind, startX) {
   const el = document.createElement("div");
   el.className = "salon-cat";
   el.dataset.cat = kind;
   el.innerHTML = `<div class="flip">${svg(kind)}</div>`;
   document.body.appendChild(el);
+  /* One tap: meow. Double tap: startled jump (fur up, tail puffed, wide eyes). Only the cat is tappable. */
+  let lastTap = 0, tapTimer = null, scareTimer = null;
+  el.addEventListener("click", () => {
+    const now = Date.now();
+    if (now - lastTap < 380) {                       // second tap
+      lastTap = 0; clearTimeout(tapTimer);
+      bubble(el, pick(["EEK!", "HISS!", "YIKES!"])); sound("scare");
+      if (!REDUCE) { el.classList.remove("scared"); void el.offsetWidth; el.classList.add("scared"); clearTimeout(scareTimer); scareTimer = setTimeout(() => el.classList.remove("scared"), 1500); }
+      return;
+    }
+    lastTap = now; clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => { lastTap = 0; bubble(el, pick(["Meow!", "Mrrow?", "Miaow~", "Prrp!"])); sound("meow"); }, 260);
+  });
   const cat = { kind, el, x: startX, pose: "stand", timer: null, locked: null, allowSmoke: true };
   place(cat, startX, 0);
   setPose(cat, "stand");

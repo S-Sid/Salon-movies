@@ -1,6 +1,6 @@
 import "./styles.css";
 import { $, esc, reduce, fmtTime, pal, safeCol } from "./util.js";
-import { MOODS, GENRES, PAIRINGS, GENRE_ROW, TIMES, BEST_TIMES, FEELINGS, AUDIENCES } from "./vocab.js";
+import { MOODS, GENRES, PAIRINGS, GENRE_ROW, TIMES, BEST_TIMES, FEELINGS, AUDIENCES, toList, toggleIn } from "./vocab.js";
 import { sceneCache, drawScene, posterBg } from "./scenes.js";
 import { store as realStore } from "./store.js";
 import { initCat } from "./cat.js";
@@ -113,7 +113,7 @@ import { initCat } from "./cat.js";
 
     const presentG = new Set(ready.flatMap(f=>f.genres||[]));
     const gs = GENRES.filter(g=>presentG.has(g)).concat([...presentG].filter(g=>!GENRES.includes(g)));
-    $("#genreChips").innerHTML = '<span class="lbl">Genre <small>pick two to pair</small></span>' + gs.map(g => {
+    $("#genreChips").innerHTML = '<span class="lbl">Genre <small>pick any</small></span>' + gs.map(g => {
       const pressed = F.genres.includes(g);
       const n = countWith(pressed ? F.genres : F.genres.concat(g));
       return chip("data-genre", g, `${esc(g)}<span class="n">${n}</span>`, pressed, n||pressed ? "" : "empty");
@@ -140,7 +140,7 @@ import { initCat } from "./cat.js";
     if (!t) return;
     if (t.dataset.lang){ F.lang = F.lang===t.dataset.lang ? null : t.dataset.lang; }
     else if (t.dataset.svc){ F.svc = F.svc===t.dataset.svc ? null : t.dataset.svc; }
-    else if (t.dataset.genre){ const g=t.dataset.genre; F.genres = F.genres.includes(g) ? F.genres.filter(x=>x!==g) : F.genres.concat(g).slice(-3); }
+    else if (t.dataset.genre){ const g=t.dataset.genre; F.genres = F.genres.includes(g) ? F.genres.filter(x=>x!==g) : F.genres.concat(g); }
     else if (t.dataset.combo){ const p=t.dataset.combo.split("|"); F.genres = (F.genres.length===2 && hasAll(F.genres,p)) ? [] : p; }
     else if (t.dataset.mood){ F.mood = F.mood===t.dataset.mood ? null : t.dataset.mood; }
     else if (t.dataset.time){ F.time = F.time===t.dataset.time ? null : t.dataset.time; }
@@ -354,10 +354,10 @@ import { initCat } from "./cat.js";
           <div class="statusset">${["want","watching","watched"].map(s=>`<button class="chip" type="button" data-status="${s}" aria-pressed="${st===s}" ${uid?"":"disabled"}>${{want:"To watch",watching:"Watching",watched:"Seen"}[s]}</button>`).join("")}</div>
           <h3>Your verdict</h3>
           <div class="quills" role="group" aria-label="Your rating out of 5">${[1,2,3,4,5].map(n=>`<button type="button" data-stars="${n}" class="${(m.stars||0)>=n?"on":""}" aria-label="${n} of 5" ${uid?"":"disabled"}>✦</button>`).join("")}</div>
-          <h3>Best time to watch</h3>
-          <div class="statusset wrap">${BEST_TIMES.map(x=>`<button class="chip sm" type="button" data-besttime="${esc(x)}" aria-pressed="${m.bestTime===x}" ${uid?"":"disabled"}>${esc(x)}</button>`).join("")}</div>
-          <h3>How it left you</h3>
-          <div class="statusset wrap">${FEELINGS.map(x=>`<button class="chip sm" type="button" data-feeling="${esc(x)}" aria-pressed="${m.feeling===x}" ${uid?"":"disabled"}>${esc(x)}</button>`).join("")}</div>
+          <h3>Best time to watch <span class="fine" style="text-transform:none;letter-spacing:0">(pick any)</span></h3>
+          <div class="statusset wrap">${BEST_TIMES.map(x=>`<button class="chip sm" type="button" data-besttime="${esc(x)}" aria-pressed="${toList(m.bestTime).includes(x)}" ${uid?"":"disabled"}>${esc(x)}</button>`).join("")}</div>
+          <h3>How it left you <span class="fine" style="text-transform:none;letter-spacing:0">(pick any)</span></h3>
+          <div class="statusset wrap">${FEELINGS.map(x=>`<button class="chip sm" type="button" data-feeling="${esc(x)}" aria-pressed="${toList(m.feeling).includes(x)}" ${uid?"":"disabled"}>${esc(x)}</button>`).join("")}</div>
           <h3>What friends say</h3>
           <div id="takes" class="fine">Loading…</div>
           <h3>Where to watch in India</h3>
@@ -369,8 +369,8 @@ import { initCat } from "./cat.js";
       </div>`;
     $(".m-close", modal).addEventListener("click", closeModal);
     modal.querySelectorAll("[data-status]").forEach(b => b.addEventListener("click", () => setMine(f.id,{status:b.dataset.status})));
-    modal.querySelectorAll("[data-besttime]").forEach(b => b.addEventListener("click", () => setMine(f.id,{bestTime:(mine[f.id]||{}).bestTime===b.dataset.besttime?"":b.dataset.besttime})));
-    modal.querySelectorAll("[data-feeling]").forEach(b => b.addEventListener("click", () => setMine(f.id,{feeling:(mine[f.id]||{}).feeling===b.dataset.feeling?"":b.dataset.feeling})));
+    modal.querySelectorAll("[data-besttime]").forEach(b => b.addEventListener("click", () => setMine(f.id,{bestTime:toggleIn((mine[f.id]||{}).bestTime,b.dataset.besttime)})));
+    modal.querySelectorAll("[data-feeling]").forEach(b => b.addEventListener("click", () => setMine(f.id,{feeling:toggleIn((mine[f.id]||{}).feeling,b.dataset.feeling)})));
     loadTakes(f.id);
     modal.querySelectorAll("[data-stars]").forEach(b => b.addEventListener("click", () => { const n=+b.dataset.stars; setMine(f.id,{stars:((mine[f.id]||{}).stars===n?0:n)}); }));
     modal.querySelectorAll("textarea[data-field]").forEach(ta => {
@@ -388,9 +388,9 @@ import { initCat } from "./cat.js";
       const all = await store.loadTakes(gid, id); if (openId !== id) return;
       const st = stats[id], others = all.filter(t => t.username !== me.name);
       const head = st && st.seen ? `<p style="margin:0 0 8px">${st.seen} ${st.seen===1?"friend has":"friends have"} seen it${st.avg?`, average ★${esc(st.avg)}`:""}.</p>` : "";
-      const feel = {}; others.forEach(t => { if (t.feeling) feel[t.feeling] = (feel[t.feeling]||0)+1; });
+      const feel = {}; others.forEach(t => toList(t.feeling).forEach(x => { feel[x] = (feel[x]||0)+1; }));
       const top = Object.entries(feel).sort((a,b)=>b[1]-a[1])[0];
-      box.innerHTML = head + (others.length ? `<div class="takes">${top && others.length>1 ? `<div class="why">Most common feeling afterwards: ${esc(top[0])}</div>`:""}${others.map(t => `<div class="take"><b>@${esc(t.username)}</b>${t.stars?` <span class="st">${"✦".repeat(t.stars)}</span>`:""}${t.remarks?`<div>${esc(t.remarks)}</div>`:""}<div class="why">${[t.best_time && "Best for: "+t.best_time, t.feeling && "Left them: "+t.feeling].filter(Boolean).map(esc).join(" · ")}</div></div>`).join("")}</div>` : "No friend has said anything about this one yet.");
+      box.innerHTML = head + (others.length ? `<div class="takes">${top && others.length>1 ? `<div class="why">Most common feeling afterwards: ${esc(top[0])}</div>`:""}${others.map(t => `<div class="take"><b>@${esc(t.username)}</b>${t.stars?` <span class="st">${"✦".repeat(t.stars)}</span>`:""}${t.remarks?`<div>${esc(t.remarks)}</div>`:""}<div class="why">${[t.best_time && "Best for: "+toList(t.best_time).join(", "), t.feeling && "Left them: "+toList(t.feeling).join(", ")].filter(Boolean).map(esc).join(" · ")}</div></div>`).join("")}</div>` : "No friend has said anything about this one yet.");
     } catch(e){ box.textContent = "Couldn't load friends' notes right now."; }
   }
 
@@ -423,6 +423,7 @@ import { initCat } from "./cat.js";
       try{
         await store.addFilm(gid, id, {title, year, language, pending:true, order:Date.now()});
         if (note && uid) await setMine(id,{remarks:note, status:"want"});
+        if (store.notifyAdded) store.notifyAdded(gid, id).catch(()=>{});   // gentle heads-up to the group
         await loadAdded();
         closeModal();
       }catch(err){ $("#addMsg").textContent = err && err.code==="invalid_argument" ? "Only the list's owner can add films." : "Couldn't add it. Try again in a moment."; }
@@ -644,6 +645,20 @@ import { initCat } from "./cat.js";
 
   /* ---------- Export ---------- */
   document.getElementById("signOut").addEventListener("click", () => store.signOut());
+  /* Notifications toggle (footer). Off until the person turns it on. */
+  const pushBtn = document.getElementById("pushBtn");
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent), standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  async function syncPush(){ try { pushBtn.textContent = (store.pushIsOn && await store.pushIsOn()) ? "Notifications: on" : "Notifications: off"; } catch(e){} }
+  pushBtn.addEventListener("click", async () => {
+    if (!store.pushSupported || !store.pushSupported()) { note(isIOS && !standalone ? "On iPhone, add the Salon to your Home Screen first (Share, then Add to Home Screen), then turn notifications on." : "This browser can't show notifications."); return; }
+    try {
+      if (await store.pushIsOn()) { await store.disablePush(); note("Notifications are off."); }
+      else if (await store.enablePush()) note("Notifications are on. You'll get a small heads-up when a friend adds a film.");
+      else note("Notifications are blocked for this site. You can allow them in your browser settings.");
+    } catch(e){ note("Couldn't change notifications right now."); }
+    syncPush(); setTimeout(() => note(""), 6000);
+  });
+  syncPush();
   document.getElementById("exportBtn").addEventListener("click", () => {
     const data = JSON.stringify({exportedAt: new Date().toISOString(), lists: rawLists, addedFilms, myNotes: mine}, null, 1);
     try { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], {type:"application/json"})); a.download = "salon-data.json"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 4000); } catch(e){}

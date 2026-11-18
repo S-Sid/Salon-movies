@@ -8,6 +8,9 @@ export const TIMES = [
   {id:"long", label:"A long evening", test:m=>m>150}
 ];
 
-export const BEST_TIMES = ["Rainy night","Lazy weekend","Date night","With friends","With family","Solo","When you feel low","When you want a thrill"];
-export const FEELINGS = ["Happy","Satisfied","Inspired","Moved","Thoughtful","Shaken","Disturbed","Drained","Over-hyped","Disappointed"];
+export const BEST_TIMES = ["Rainy night","Lazy weekend","Date night","With friends","With family","Solo","When you feel low","When you want a thrill","Late night","Sunday afternoon","Festival or holiday","After a long day"];
+export const FEELINGS = ["Happy","Energetic","Satisfied","Inspired","Moved","Thoughtful","Shaken","Disturbed","Drained","Over-hyped","Disappointed","Laughed a lot","Scared","Nostalgic","Emotional","Confused","Bored"];
+/* Best time and feelings are multi-select. They are stored as one text value joined with "|". */
+export const toList = s => String(s||"").split("|").map(x=>x.trim()).filter(Boolean);
+export const toggleIn = (s, v) => { const l = toList(s); return (l.includes(v) ? l.filter(x=>x!==v) : l.concat(v)).join("|"); };
 export const AUDIENCES = ["Kids","Family","Teens 13+","Adults only"];

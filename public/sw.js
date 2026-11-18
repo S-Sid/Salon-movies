@@ -1,6 +1,6 @@
 /* Salon service worker: caches the app shell so the installed app opens instantly and offline.
    Never touches Supabase (other origin): the data layer has its own offline copy in store.js. */
-const VERSION = "salon-v1";
+const VERSION = "salon-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
@@ -43,4 +43,20 @@ self.addEventListener("fetch", e => {
       return hit || net;
     })
   );
+});
+
+/* Gentle notifications: someone added a film to one of your groups. */
+self.addEventListener("push", e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (err) {}
+  e.waitUntil(self.registration.showNotification(d.title || "The Salon", {
+    body: d.body || "", icon: "/icons/icon-192.png", badge: "/icons/icon-192.png", tag: d.tag, data: { url: d.url || "/" },
+  }));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "/";
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+    for (const c of list) { if ("focus" in c) return c.focus(); }
+    return self.clients.openWindow(url);
+  }));
 });

@@ -19,6 +19,16 @@ Live site: https://salonsid.netlify.app  (GitHub: https://github.com/S-Sid/Salon
 - [ ] Decide the web address: Netlify > Site configuration > Change site name (do this BEFORE sharing the link; then update the Supabase URLs above)
 - [ ] Decide the on-screen name (header "SALON of Sid", tab title, phone icon label)
 
+## Notifications: BUILT LOCALLY, NOT LIVE YET
+Small, gentle push: "@sam added Jaws (1975) to <group>: <their note>". Opt-in (footer button "Notifications: off/on"). Works on Android Chrome; iPhone only after Add to Home Screen.
+To go live:
+1. [ ] Supabase > SQL Editor: run `supabase/migration-4-push.sql`
+2. [ ] Netlify > Site configuration > Environment variables, add:
+   - `VITE_VAPID_PUBLIC_KEY` = the value in your `.env.local`
+   - `VAPID_PRIVATE_KEY` = the value in your `.env.local` (mark as secret)
+   - `SUPABASE_SERVICE_ROLE_KEY` = Supabase > Project Settings > API > service_role (mark as secret; never put it in the app code)
+3. [ ] Ask Claude to commit + push, then redeploy. On each phone: footer > Notifications > Allow.
+
 ## Groups version: BUILT LOCALLY, NOT LIVE YET (supersedes the single shared shelf + invite code)
 Anyone creates groups; each group has its own join code, shelf, and member list. Your 201 films become the group "Sid's Salon". Sign-up becomes open (no site-wide invite code). Mock test: http://localhost:5173/?mock (add &nogroups for first-time screen).
 To go live, IN THIS ORDER:

@@ -210,6 +210,33 @@ export const store = {
     if (error) throw error;
   },
 
+  /* ----- notifications (web push) ----- */
+  pushSupported() { return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && !!import.meta.env.VITE_VAPID_PUBLIC_KEY; },
+  async pushIsOn() {
+    if (!this.pushSupported() || Notification.permission !== "granted") return false;
+    const reg = await navigator.serviceWorker.ready; return !!(await reg.pushManager.getSubscription());
+  },
+  async enablePush() {
+    const perm = await Notification.requestPermission(); if (perm !== "granted") return false;
+    const reg = await navigator.serviceWorker.ready;
+    const b64 = import.meta.env.VITE_VAPID_PUBLIC_KEY.replace(/-/g, "+").replace(/_/g, "/");
+    const key = Uint8Array.from(atob(b64 + "=".repeat((4 - b64.length % 4) % 4)), c => c.charCodeAt(0));
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    const j = sub.toJSON();
+    const { error } = await sb.from("push_subscriptions").upsert({ user_id: userId, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }, { onConflict: "endpoint" });
+    if (error) throw error;
+    return true;
+  },
+  async disablePush() {
+    const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription();
+    if (sub) { await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); }
+  },
+  /* Tell the group a film was added. Fire and forget: the shelf works even if this fails. */
+  async notifyAdded(groupId, filmId) {
+    const { data } = await sb.auth.getSession(); if (!data.session) return;
+    await fetch("/.netlify/functions/notify", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + data.session.access_token }, body: JSON.stringify({ groupId, filmId }) });
+  },
+
   /* ----- realtime: phone and laptop stay in step ----- */
   subscribeNotes(cb) {
     channels.push(sb.channel("notes-sync")

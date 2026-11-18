@@ -125,7 +125,7 @@ function makeCat(kind, startX) {
   const cat = { kind, el, x: startX, pose: "stand", timer: null, locked: null, allowSmoke: true, ledge: { floor: true } };
   place(cat, startX, 0);
   setTop(cat, "0s");
-  setPose(cat, "stand");
+  setPose(cat, kind === "lady" ? "phone" : "stand");
   return cat;
 }
 
@@ -177,10 +177,10 @@ function wander(c) {
   clearTimeout(c.timer);
   if (REDUCE || document.hidden) return;
   if (c.locked) return perform(c);
-  const next = Math.random() < 0.55 ? pickLedge(c) : null;
+  const next = Math.random() < 0.85 ? pickLedge(c) : null;
   const go = () => walkTo(c, pickX(), () => {
-    setPose(c, IDLE_POSES[Math.floor(Math.random() * IDLE_POSES.length)]);
-    c.timer = setTimeout(() => wander(c), rand(4000, 9000));
+    setPose(c, c.kind === "lady" && Math.random() < 0.55 ? "phone" : IDLE_POSES[Math.floor(Math.random() * IDLE_POSES.length)]);
+    c.timer = setTimeout(() => wander(c), rand(4000, 8000));
   });
   next ? moveLedge(c, next, go) : go();
 }
@@ -205,7 +205,14 @@ export function initCat() {
   const clear = () => { cats.forEach(c => { clearTimeout(c.timer); c.el.remove(); }); cats = []; };
   if (enabled) make();
   /* keep the cats attached: follow the screen floor while scrolling; re-anchor to rows; rescue strays */
-  addEventListener("scroll", () => { cats.forEach(c => { if (c.ledge.floor) setTop(c, "0s"); }); }, { passive: true });
+  let scrollIdle = null;
+  addEventListener("scroll", () => {
+    cats.forEach(c => { if (c.ledge.floor) setTop(c, "0s"); });
+    clearTimeout(scrollIdle);
+    scrollIdle = setTimeout(() => cats.forEach(c => {            // scrolling stopped: a cat on the floor spots a row and hops up
+      if (!c.locked && c.ledge.floor && !c.el.classList.contains("leap") && visibleLedges().length > 1) wander(c);
+    }), 600);
+  }, { passive: true });
   setInterval(() => {
     if (document.hidden) return;
     cats.forEach(c => {

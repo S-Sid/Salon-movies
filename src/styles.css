@@ -448,3 +448,20 @@ textarea:focus,input:focus{border-color:var(--gilt)}
 footer{border-top:4px double var(--gilt)}
 footer .flour{font-size:30px}
 .shelf{font-size:24px}
+
+/* ---------- Phones: keep the header clear of the status bar and make it compact ---------- */
+header{padding-top:calc(env(safe-area-inset-top, 0px) + 14px)}
+@media (max-width:640px){
+  header{padding:calc(env(safe-area-inset-top, 0px) + 10px) 14px 6px;gap:6px 8px;row-gap:4px;align-items:center}
+  .brand b{font-size:20px;text-shadow:2px 2px 0 var(--claret)}
+  header .chip{font-size:15px;padding:0 9px;line-height:1.5}
+  #groupBtn{max-width:38vw;overflow:hidden;text-overflow:ellipsis}
+  #addBtn{font-size:15px;padding:3px 10px;box-shadow:3px 3px 0 var(--claret)}
+  nav.tabs{gap:16px;padding-bottom:0}
+  nav.tabs button{font-size:17px;padding:2px 0}
+  header,header.solid{border-bottom-width:3px;box-shadow:0 3px 0 var(--claret),0 6px 0 var(--wisteria)}
+  .hero{padding-top:calc(env(safe-area-inset-top, 0px) + 128px);min-height:auto}
+  .eyebrow{font-size:18px}
+  .evening h2{font-size:26px}
+}
+@media (max-width:640px){.xs-hide{display:none}.brand{margin-right:0}header .spacer{display:none}#groupBtn{flex:1 1 auto;min-width:0;max-width:none}}
